@@ -113,6 +113,8 @@ The other clips (`demo-link.gif`, `demo-desktops.gif`, `demo-reopen.gif`) are ma
 - A synthetic ⌘Q leaves the Command flag on later synthetic clicks, and ⌘-click on a menu bar icon does not open it. `click.swift` clears the flags for that reason.
 - Synthetic Control-arrow does not switch desktops; open Mission Control (`open -a "Mission Control"`) and click the desktop instead. Clicking the wallpaper triggers "show desktop".
 
+- `demo-sort.gif` needs windows spread over several desktops first: `spaces move <pid> <desktop number>` (from `spaces.swift`) moves all of an app's windows, and `hover` moves the pointer without clicking. In Mission Control the desktop thumbnails shift depending on which desktop is current, so measure their positions from a screenshot before scripting a click.
+
 Recording on macOS 26.6 also confirmed, outside the development machine, that `ProcessAssignToSpace` moves a folded workspace to another desktop.
 
 `docs/walkthrough.gif` needs no VM: `scripts/make-demo.sh` renders the app's own window against made-up data.

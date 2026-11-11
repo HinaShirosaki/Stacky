@@ -20,6 +20,10 @@ Requires macOS 14 or later. Developed and tested on macOS 27.
 
 Recorded in a clean virtual machine with made-up documents.
 
+**Sort a messy set of desktops.** Two tasks' windows are scattered over three desktops. One click on each workspace gathers its windows onto a single desktop, leaving one task per desktop.
+
+<p align="center"><img src="docs/demo-sort.gif" width="640" alt="Windows of two tasks mixed across three desktops; clicking each workspace gathers its windows onto one desktop, shown before and after in Mission Control"></p>
+
 **Link windows by clicking them.** Create a workspace, turn on link mode, click each window, press Done. The files behind the windows are linked too.
 
 <p align="center"><img src="docs/demo-link.gif" width="640" alt="Creating a workspace named Thesis and linking three windows to it by clicking them"></p>
