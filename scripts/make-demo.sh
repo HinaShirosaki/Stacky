@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Builds docs/demo.gif from real renders of the app's UI, using made-up workspaces (never your own data).
+# Builds docs/walkthrough.gif from real renders of the app's UI, using made-up workspaces (never your own data).
 # Usage: scripts/make-demo.sh   (needs build/Stacky.app; run scripts/bundle.sh first)
 set -e
 cd "${0:A:h}/.."
@@ -56,4 +56,4 @@ for (image, caption) in zip(images, captions) {
 print(CGImageDestinationFinalize(dest) ? "Wrote \(out)" : "GIF failed")
 SWIFT
 mkdir -p docs
-swift "$D/gif.swift" "$D" docs/demo.gif
+swift "$D/gif.swift" "$D" docs/walkthrough.gif

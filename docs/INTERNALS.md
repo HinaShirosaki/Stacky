@@ -98,3 +98,15 @@ Checked on macOS 27.2 (26B123) against a test window owned by another process:
 - `MoveWindowsToManagedSpace`, `SpaceAddWindowsAndRemoveFromSpaces` and `AddWindowsToSpaces` + `RemoveWindowsFromSpaces` have no effect.
 - `ProcessAssignToSpace` moves all of the process's windows, minimized ones included. Assigning Space 0 afterwards clears it.
 - To repeat: `STACKY_MOVE_WINDOW=<window id> STACKY_MOVE_SPACE=<space id> swift test --filter CrossProcess`.
+
+## Recording the demo
+
+`docs/demo.gif` is a real screen recording, made in a throwaway [Tart](https://tart.run) VM so no personal windows or files appear. The helpers are in `scripts/demo/`.
+
+1. Clone and start a Cirrus Labs macOS base image (`tart clone ghcr.io/cirruslabs/macos-tahoe-base:latest stacky-demo`, `tart run stacky-demo --no-graphics`). These images have SIP off and already let SSH sessions capture the screen and post input events.
+2. Copy `build/Stacky.app` in and grant it Accessibility by adding an `app.stacky.Stacky` row to the VM's system `TCC.db`.
+3. Open a few made-up documents, run `seed.py` to write a matching workspace, and launch Stacky.
+4. Record with `screencapture -v -V 13 -C demo.mov` while `click` (built from `click.swift`) clicks the menu bar icon, then Fold, then Release. Positions are in screen points.
+5. On the host, `mov2gif demo.mov docs/demo.gif 8 640 1.2 12.2` (frames per second, width, start and end seconds).
+
+`docs/walkthrough.gif` needs no VM: `scripts/make-demo.sh` renders the app's own window against made-up data.
