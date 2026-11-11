@@ -66,6 +66,8 @@ public struct ItemStore: Sendable {
     public init(url: URL) { self.url = url }
 
     public static var `default`: ItemStore {
+        // STACKY_STORE points the app at another file: demo data for screenshots, or a scratch store while developing.
+        if let path = ProcessInfo.processInfo.environment["STACKY_STORE"] { return ItemStore(url: URL(fileURLWithPath: path)) }
         let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let new = dir.appending(path: "Stacky"), old = dir.appending(path: "Kanade")
         // The app was called Kanade; carry its folder over once. Fails harmlessly if either side is missing or new exists.

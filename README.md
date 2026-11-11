@@ -6,6 +6,8 @@ A menu bar workspace manager for macOS. Group the windows and files of one task 
 
 Requires macOS 14 or later. Developed and tested on macOS 27.
 
+<p align="center"><img src="docs/demo.gif" width="380" alt="Stacky's menu bar list: creating a workspace, linking windows and files, folding and releasing"></p>
+
 ## What it does
 
 - **Workspaces.** A workspace is a named set of windows, files, folders, apps and links.
@@ -69,6 +71,7 @@ The last rule is a best guess; if it picks the wrong file, remove it from the ca
 swift test          # engine and matching logic, with mocked windows and desktops
 scripts/bundle.sh   # build/Stacky.app
 swift scripts/make-icon.swift   # regenerate the icon
+scripts/make-demo.sh            # regenerate docs/demo.gif from made-up workspaces
 ```
 
 The code is split into small modules (`WindowKit`, `SpacesKit`, `LaunchKit`, `Store`, `AppUI`). [docs/INTERNALS.md](docs/INTERNALS.md) covers the architecture, the private calls and their risks, measurements, and the built-in diagnostics.

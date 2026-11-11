@@ -45,7 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if let i = CommandLine.arguments.firstIndex(of: "--snapshot"), i + 1 < CommandLine.arguments.count {
             // Diagnostics: `open -n Stacky.app --args --snapshot /path/out.png` renders the UI to a PNG.
             let path = CommandLine.arguments[i + 1]
-            showWindow()
+            showWindow(notice: false) // this instance has no menu bar icon by design
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [self] in
                 // CGWindowListCreateImage is hidden from the Swift SDK but still renders our own window, glass included.
                 typealias Capture = @convention(c) (CGRect, UInt32, UInt32, UInt32) -> Unmanaged<CGImage>?
@@ -192,10 +192,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     // MARK: - Window
 
-    private func showWindow() {
+    private func showWindow(notice showNotice: Bool = true) {
         popover.performClose(nil)
         if window == nil {
-            let notice = iconVisible ? nil
+            let notice = iconVisible || !showNotice ? nil
                 : "Stacky's menu bar icon is hidden: the menu bar is full or Stacky is off in System Settings › Menu Bar. Quit a menu bar app or ⌘-drag icons to make room."
             let host = NSHostingController(rootView: ItemsPopover(engine: engine, outerGlass: true, notice: notice))
             host.sizingOptions = .preferredContentSize // window tracks content as cards come and go
