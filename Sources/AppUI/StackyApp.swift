@@ -330,7 +330,8 @@ struct ItemsPopover: View {
                 .padding(.horizontal, 12)
                 .frame(height: 32)
                 .glass(in: RoundedRectangle(cornerRadius: radius, style: .continuous))
-                .onAppear { nameFocused = true }
+                // Focus set in the same pass that inserts the field is dropped; ask again once it is in the window.
+                .onAppear { DispatchQueue.main.async { nameFocused = true } }
                 .onSubmit(commitNew)
                 .onExitCommand { adding = false; newName = "" }
         } else {

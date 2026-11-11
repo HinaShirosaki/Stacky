@@ -105,14 +105,13 @@ public actor AXWindowProvider: WindowProvider {
             guard let b = d[kCGWindowBounds as String] as? NSDictionary,
                   let r = CGRect(dictionaryRepresentation: b), r.contains(point),
                   (d[kCGWindowAlpha as String] as? Double ?? 1) > 0 else { continue } // invisible overlays don't count
-            // Whatever is on top decides: menu bar, panels and our own windows link nothing...
-            guard (d[kCGWindowLayer as String] as? Int) == 0, (d[kCGWindowOwnerPID as String] as? pid_t) != me else {
-                // ...except display-sized system overlays (Dock, Notification Center, Screenshot), which are
-                // transparent yet report alpha 1 and would otherwise swallow every click.
-                // ponytail: a click on the Dock bar itself links the window behind it.
-                if NSScreen.screens.contains(where: { $0.frame.size == r.size }), (d[kCGWindowLayer as String] as? Int) != 0 { continue }
-                return nil
-            }
+            // Our own windows (the link HUD, the popover) link nothing.
+            if (d[kCGWindowOwnerPID as String] as? pid_t) == me { return nil }
+            // Anything else above the normal window layer is skipped, not obeyed: the system keeps invisible
+            // display-sized overlays there (Dock, Notification Center), and so do screen recorders and
+            // annotation tools, in sizes that can't be predicted. Any of them would swallow every click.
+            // ponytail: a click on the Dock or a floating panel therefore links the window behind it.
+            guard (d[kCGWindowLayer as String] as? Int) == 0 else { continue }
             return d[kCGWindowNumber as String] as? CGWindowID
         }
         return nil

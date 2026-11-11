@@ -16,6 +16,22 @@ Requires macOS 14 or later. Developed and tested on macOS 27.
 - **Recover from files.** Linking a window also links the file or folder it shows, so a workspace can reopen its documents after the apps have quit or the Mac has restarted.
 - **Multiple monitors.** A workspace can span monitors; windows always return to their own monitor.
 
+## Demos
+
+Recorded in a clean virtual machine with made-up documents.
+
+**Link windows by clicking them.** Create a workspace, turn on link mode, click each window, press Done. The files behind the windows are linked too.
+
+<p align="center"><img src="docs/demo-link.gif" width="640" alt="Creating a workspace named Thesis and linking three windows to it by clicking them"></p>
+
+**Move a workspace to another desktop.** Fold on Desktop 1, switch to Desktop 2, release: the windows arrive there in the same order.
+
+<p align="center"><img src="docs/demo-desktops.gif" width="640" alt="Folding a workspace on Desktop 1, switching to Desktop 2 in Mission Control, and releasing it there"></p>
+
+**Reopen a workspace from its files.** After the apps have quit, clicking the workspace opens its linked documents again.
+
+<p align="center"><img src="docs/demo-reopen.gif" width="640" alt="Quitting TextEdit and Preview, then clicking the workspace to reopen their documents"></p>
+
 ## Install
 
 There are no prebuilt releases yet. Build from source with Xcode or the Swift toolchain installed:

@@ -13,6 +13,8 @@ for i in 1...steps {
 }
 usleep(150_000)
 for type in [CGEventType.leftMouseDown, .leftMouseUp] {
-    CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: to, mouseButton: .left)!.post(tap: .cghidEventTap)
+    let e = CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: to, mouseButton: .left)!
+    e.flags = [] // a plain click, whatever modifier a previous synthetic key press left behind
+    e.post(tap: .cghidEventTap)
     usleep(60_000)
 }

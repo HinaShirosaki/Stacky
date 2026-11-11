@@ -109,4 +109,10 @@ Checked on macOS 27.2 (26B123) against a test window owned by another process:
 4. Record with `screencapture -v -V 13 -C demo.mov` while `click` (built from `click.swift`) clicks the menu bar icon, then Fold, then Release. Positions are in screen points.
 5. On the host, `mov2gif demo.mov docs/demo.gif 8 640 1.2 12.2` (frames per second, width, start and end seconds).
 
+The other clips (`demo-link.gif`, `demo-desktops.gif`, `demo-reopen.gif`) are made the same way with different click sequences; `key` (from `key.swift`) types text and presses keys. Two things to know:
+- A synthetic ⌘Q leaves the Command flag on later synthetic clicks, and ⌘-click on a menu bar icon does not open it. `click.swift` clears the flags for that reason.
+- Synthetic Control-arrow does not switch desktops; open Mission Control (`open -a "Mission Control"`) and click the desktop instead. Clicking the wallpaper triggers "show desktop".
+
+Recording on macOS 26.6 also confirmed, outside the development machine, that `ProcessAssignToSpace` moves a folded workspace to another desktop.
+
 `docs/walkthrough.gif` needs no VM: `scripts/make-demo.sh` renders the app's own window against made-up data.
