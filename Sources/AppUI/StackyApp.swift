@@ -505,6 +505,16 @@ struct ItemCard: View {
             HStack(spacing: 8) {
                 contents
                 Spacer(minLength: 0)
+                Button { Task { await engine.activate(item.id) } } label: {
+                    Label("Go", systemImage: "arrow.up.forward")
+                        .font(.callout.weight(.medium))
+                        .padding(.horizontal, 10).frame(height: 26)
+                        .background(.quaternary, in: Capsule())
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.primary)
+                .help("Go to this workspace's desktop, gather its windows there and open its files")
                 Button { Task { item.isFolded ? await engine.release(item.id) : await engine.fold(item.id) } } label: {
                     Label(item.isFolded ? "Release" : "Fold",
                           systemImage: item.isFolded ? "arrow.up.left.and.arrow.down.right" : "arrow.down.right.and.arrow.up.left")
@@ -532,8 +542,6 @@ struct ItemCard: View {
             engine.addPayloads(urls.map(LaunchPayload.init), to: item.id)
             return !urls.isEmpty
         } isTargeted: { dropTargeted = $0 }
-        .onTapGesture { Task { await engine.activate(item.id) } }
-        .help("Click to go to this workspace and open its files")
         .contextMenu {
             Button("Link Frontmost Window") { Task { await engine.bindFrontmostWindow(to: item.id) } }
             Divider()
@@ -587,7 +595,7 @@ struct ItemCard: View {
                 .frame(height: 22)
         } else {
             HStack(spacing: 5) {
-                ForEach(Array(icons.prefix(7).enumerated()), id: \.offset) { _, icon in
+                ForEach(Array(icons.prefix(4).enumerated()), id: \.offset) { _, icon in
                     Group {
                         if let image = icon.image {
                             Image(nsImage: image).resizable()
@@ -598,8 +606,8 @@ struct ItemCard: View {
                     .frame(width: 22, height: 22)
                     .help(icon.name)
                 }
-                if icons.count > 7 {
-                    Text("+\(icons.count - 7)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                if icons.count > 4 {
+                    Text("+\(icons.count - 4)").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
                 }
             }
             .opacity(item.isFolded ? 0.55 : 1)

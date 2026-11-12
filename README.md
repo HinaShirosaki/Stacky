@@ -28,7 +28,7 @@ Every demo below was recorded in a clean virtual machine with made-up documents.
 
 ### Sort a messy set of desktops
 
-Click a workspace to gather its windows onto the desktop that already holds most of them and switch there. Linked files that have no window yet open too. The demo above shows two tasks spread across three desktops sorted into one task per desktop, with two clicks.
+Press **Go** on a workspace to gather its windows onto the desktop that already holds most of them and switch there. Linked files that have no window yet open too. The demo above shows two tasks spread across three desktops sorted into one task per desktop, with two clicks.
 
 ### Link windows by clicking them
 
@@ -44,7 +44,7 @@ A workspace is a named set of windows, files, folders, apps and links. Turn on l
 
 ### Reopen after a restart
 
-Because a workspace links the files behind its windows, clicking it reopens those documents after their apps have quit or the Mac has restarted.
+Because a workspace links the files behind its windows, its **Go** button reopens those documents after their apps have quit or the Mac has restarted.
 
 <p align="center"><img src="docs/demo-reopen.gif" width="640" alt="Quitting TextEdit and Preview, then clicking the workspace to reopen their documents"></p>
 
@@ -106,7 +106,7 @@ Click the Stacky icon in the menu bar.
 | Link files, folders, apps | Drag them onto a card (dragging onto the menu bar icon opens the list), or use the paperclip |
 | See or remove what is linked | The list icon on a card |
 | Fold / release | The **Fold** / **Release** button on a card |
-| Go to a workspace | Click the card |
+| Go to a workspace | The **Go** button on a card |
 | Delete a workspace | Right-click the card |
 | Mark an app as shared | The gear button › **Shared Apps** |
 
