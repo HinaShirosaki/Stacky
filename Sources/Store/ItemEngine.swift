@@ -57,6 +57,12 @@ public final class ItemEngine {
         items = store.load()
         sharedApps = Set(UserDefaults.standard.stringArray(forKey: "sharedApps") ?? [])
         defaultStrategy = UserDefaults.standard.string(forKey: "foldStrategy").flatMap(FoldStrategyKind.init) ?? .minimize
+        // One-time upgrade of workspaces saved by earlier versions. Not repeated, so an app the user removes
+        // from a workspace afterwards stays removed.
+        if !UserDefaults.standard.bool(forKey: "linkedAppsOfWindows") {
+            for i in items.indices { items[i].linkAppsOfWindows() }
+            if (try? store.save(items)) != nil { UserDefaults.standard.set(true, forKey: "linkedAppsOfWindows") }
+        }
     }
 
     // MARK: - Editing

@@ -130,6 +130,18 @@ final class EngineTests: XCTestCase {
         XCTAssertEqual(launcher.launched.last, [.app(bundleID: "com.a")])
     }
 
+    func testOldWorkspacesGainTheAppsOfTheirWindowsOnce() {
+        var item = Item(name: "Grading")
+        let doc = URL(fileURLWithPath: "/tmp/key.docx")
+        item.windows = [BoundWindow(fingerprint: WindowFingerprint(win("key", bid: "com.word", id: 1, z: 0))),
+                        BoundWindow(fingerprint: WindowFingerprint(win("Gradescope", bid: "com.browser", id: 2, z: 1)))]
+        item.payloads = [.folder(doc, app: "com.word")]
+        item.linkAppsOfWindows()
+        XCTAssertEqual(item.payloads, [.folder(doc, app: "com.word"), .app(bundleID: "com.browser")]) // Word is covered by its document
+        item.linkAppsOfWindows()
+        XCTAssertEqual(item.payloads.count, 2)
+    }
+
     func testRemoveWindowUnlinksOnlyThatWindow() async {
         let e = await makeEngine()
         e.removeWindow(e.items[0].windows[0].id, from: id(e))

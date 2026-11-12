@@ -35,6 +35,20 @@ public struct Item: Codable, Hashable, Identifiable, Sendable {
 
     public var isFolded: Bool { if case .folded = state { true } else { false } }
 
+    /// Adds the app of every linked window that nothing in the item would reopen. Workspaces saved before
+    /// linking a window also linked its app need this once, or a quit app (a browser, say) never comes back.
+    mutating func linkAppsOfWindows() {
+        for id in windows.map(\.fingerprint.bundleID) {
+            let covered = payloads.contains { p in
+                switch p {
+                case .app(let app), .folder(_, let app): app == id
+                case .file, .url: false
+                }
+            }
+            if !covered { payloads.append(.app(bundleID: id)) }
+        }
+    }
+
     /// Idempotent launch: skip payloads that already have a live window bound to this item.
     func pendingPayloads(live: [LiveWindow]) -> [LaunchPayload] {
         /// A window already shows `url`: by its document, or (apps that expose none) by its name in the title.
