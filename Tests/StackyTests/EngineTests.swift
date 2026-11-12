@@ -97,12 +97,13 @@ final class EngineTests: XCTestCase {
         live[2].documentURL = doc
         await mock.replace(live)
         await e.toggleWindow(live[2], among: live, in: id(e)) // link C
-        XCTAssertEqual(e.items[0].payloads, [.folder(doc, app: "com.c")]) // reopened in the app it was linked from
+        let appA = LaunchPayload.app(bundleID: "com.a") // A and B show no file, so their app was linked instead
+        XCTAssertEqual(e.items[0].payloads, [appA, .folder(doc, app: "com.c")]) // reopened in the app it was linked from
         await e.toggleWindow(live[2], among: live, in: id(e)) // unlink, relink: no duplicate
         await e.toggleWindow(live[2], among: live, in: id(e))
-        XCTAssertEqual(e.items[0].payloads, [.folder(doc, app: "com.c")])
+        XCTAssertEqual(e.items[0].payloads, [appA, .folder(doc, app: "com.c")])
         e.removePayload(.folder(doc, app: "com.c"), from: id(e))
-        XCTAssertEqual(e.items[0].payloads, [])
+        XCTAssertEqual(e.items[0].payloads, [appA])
         XCTAssertEqual(LaunchPayload(URL(string: "https://example.com/a")!), .url(URL(string: "https://example.com/a")!, browser: nil))
     }
 
@@ -111,11 +112,22 @@ final class EngineTests: XCTestCase {
         let live = await mock.live
         await e.toggleWindow(live[2], among: live, in: id(e)) // C exposes no document: finder resolves by title
         let found = LaunchPayload.folder(URL(fileURLWithPath: "/tmp/C.dat"), app: "com.c")
-        XCTAssertEqual(e.items[0].payloads, [found])
-        XCTAssertEqual(e.items[0].pendingPayloads(live: []), [found])
+        let appA = LaunchPayload.app(bundleID: "com.a")
+        XCTAssertEqual(e.items[0].payloads, [appA, found])
+        XCTAssertEqual(e.items[0].pendingPayloads(live: []), [appA, found])
         e.addPayloads([.folder(URL(fileURLWithPath: "/tmp/Window C notes.txt"), app: "com.c")], to: id(e))
         var titled = live[2]; titled.title = "window c notes — Edited"
-        XCTAssertEqual(e.items[0].pendingPayloads(live: [titled]), [found]) // the notes file is already showing
+        XCTAssertEqual(e.items[0].pendingPayloads(live: [titled]), [appA, found]) // the notes file is already showing
+    }
+
+    func testWindowWithNoFileLinksItsAppAndRelaunchesItAfterQuit() async {
+        let e = await makeEngine() // A and B belong to com.a and show no document
+        XCTAssertEqual(e.items[0].payloads, [.app(bundleID: "com.a")], "linked once, not once per window")
+        await e.activate(id(e))
+        XCTAssertEqual(launcher.launched.last, [], "the app is running: nothing to open")
+        await mock.replace([]) // the app quit
+        await e.activate(id(e))
+        XCTAssertEqual(launcher.launched.last, [.app(bundleID: "com.a")])
     }
 
     func testRemoveWindowUnlinksOnlyThatWindow() async {

@@ -634,7 +634,9 @@ struct ItemCard: View {
             return "Other desktop"
         }
         func count(_ n: Int, _ word: String) -> String? { n == 0 ? nil : "\(n) \(word)\(n == 1 ? "" : "s")" }
-        return [count(item.windows.count, "window"), count(item.payloads.count, "file")].compactMap { $0 }.joined(separator: " · ")
+        // Apps linked only so they can be relaunched aren't files; the icon row already shows them.
+        let files = item.payloads.filter { if case .app = $0 { false } else { true } }.count
+        return [count(item.windows.count, "window"), count(files, "file")].compactMap { $0 }.joined(separator: " · ")
     }
 
     private func pickFiles() {

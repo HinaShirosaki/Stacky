@@ -103,8 +103,9 @@ The gear button (or a right-click on the list's background) also sets how foldin
 | Document apps that report their file (tested with Acrobat and ChemDraw; Preview, Office and other standard document apps should behave the same) | The document |
 | Terminal | The working directory |
 | Apps that report nothing (many Qt, Java and Electron apps) | A file named like the window title that the app can open, found with Spotlight |
+| Any window with no file behind it (Calculator, Mail, a browser) | The app itself, so it can be relaunched |
 
-The last rule is a best guess; if it picks the wrong file, remove it from the card's list.
+The Spotlight rule is a best guess; if it picks the wrong file, remove it from the card's list. A relaunched app opens its own default window, not the exact window you had.
 
 ### Shared apps
 

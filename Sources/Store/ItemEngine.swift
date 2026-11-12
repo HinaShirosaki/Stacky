@@ -98,7 +98,10 @@ public final class ItemEngine {
         let target = EditorFolders.folder(bundleID: w.bundleID, title: w.title)
             ?? w.documentURL.flatMap { $0.isFileURL ? $0 : nil }
             ?? documentFinder(w.title, w.bundleID)
-        if let payload = target.map({ LaunchPayload.folder($0, app: w.bundleID) }), !item.payloads.contains(payload) { item.payloads.append(payload) }
+        // A window with no file behind it (Calculator, Mail, a browser) still links its app, so a click on the
+        // workspace can at least bring the app back after it quit.
+        let payload = target.map { LaunchPayload.folder($0, app: w.bundleID) } ?? .app(bundleID: w.bundleID)
+        if !item.payloads.contains(payload) { item.payloads.append(payload) }
     }
 
     public func bindFrontmostWindow(to id: Item.ID) async {
