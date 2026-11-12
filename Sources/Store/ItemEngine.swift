@@ -18,6 +18,10 @@ public final class ItemEngine {
     public private(set) var items: [Item]
     /// The desktops currently showing, one per monitor.
     public private(set) var visibleSpaces: Set<SpaceID> = []
+    /// Workspaces with a window on a desktop that isn't showing: there is somewhere to go.
+    public private(set) var away: Set<Item.ID> = []
+    /// Workspaces with a linked file or app that has no window: there is something to open.
+    public private(set) var unopened: Set<Item.ID> = []
     public var lastError: String?
     /// Bundle IDs of apps every workspace uses (Mail, chat, music). Their windows show on every desktop and
     /// are never folded or moved for one workspace, since that would take them away from the others.
@@ -181,6 +185,25 @@ public final class ItemEngine {
         bound.filter { !sharedApps.contains($0.window.bundleID) }
     }
 
+    /// Where each workspace stands right now; decides whether its card offers Go / Open at all.
+    public func refreshStatus() async {
+        await refreshSpace()
+        guard let live = try? await windows.windows() else { return }
+        var away: Set<Item.ID> = [], unopened: Set<Item.ID> = []
+        for item in items {
+            let matched = Array(Rebinder.match(item.windows.map(\.fingerprint), to: live).values)
+            for w in matched where !sharedApps.contains(w.bundleID) {
+                if let id = w.windowID, let space = await spaces.space(of: id), !visibleSpaces.contains(space) {
+                    away.insert(item.id)
+                    break
+                }
+            }
+            if !item.pendingPayloads(live: matched).isEmpty { unopened.insert(item.id) }
+        }
+        self.away = away
+        self.unopened = unopened
+    }
+
     public func refreshSpace() async {
         let shown = await spaces.layout().map(\.current)
         if let active = await spaces.currentSpace() { visibleSpaces = Set(shown + [active]) } else { visibleSpaces = Set(shown) }
@@ -337,6 +360,7 @@ public final class ItemEngine {
             items[i] = item
             lastError = nil
             save()
+            await refreshStatus()
         } catch {
             log.error("\(item.name, privacy: .public): \(error.localizedDescription, privacy: .public)")
             lastError = "\(item.name): \(error.localizedDescription)"

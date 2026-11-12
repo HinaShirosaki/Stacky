@@ -106,7 +106,7 @@ Click the Stacky icon in the menu bar.
 | Link files, folders, apps | Drag them onto a card (dragging onto the menu bar icon opens the list), or use the paperclip |
 | See or remove what is linked | The list icon on a card |
 | Fold / release | The **Fold** / **Release** button on a card |
-| Go to a workspace | The **Go** button on a card |
+| Go to a workspace | The **Go** button on a card. It appears only when the workspace is on a desktop you aren't looking at; when it is already here but a file or app of its is closed, the button reads **Open** |
 | Delete a workspace | Right-click the card |
 | Mark an app as shared | The gear button › **Shared Apps** |
 

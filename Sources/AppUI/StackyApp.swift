@@ -214,6 +214,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NSApp.activate()
         anchorDropdown()
         dropdown?.makeKeyAndOrderFront(nil)
+        Task { await engine.refreshStatus() } // the view stays alive between shows, so it can't rely on onAppear
     }
 
     private func anchorDropdown() {
@@ -263,6 +264,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         NSApp.activate()
         window?.makeKeyAndOrderFront(nil)
+        Task { await engine.refreshStatus() }
     }
 }
 
@@ -354,7 +356,7 @@ struct ItemsPopover: View {
         .contextMenu { settingsMenu }
         .onExitCommand { NSApp.keyWindow?.orderOut(nil) }
         .animation(.smooth, value: trusted)
-        .onAppear { Task { await engine.refreshSpace() } }
+        .onAppear { Task { await engine.refreshStatus() } }
         .task {
             // No public notification for AX trust changes; poll only while the banner is up.
             while !Task.isCancelled {
@@ -505,16 +507,22 @@ struct ItemCard: View {
             HStack(spacing: 8) {
                 contents
                 Spacer(minLength: 0)
-                Button { Task { await engine.activate(item.id) } } label: {
-                    Label("Go", systemImage: "arrow.up.forward")
-                        .font(.callout.weight(.medium))
-                        .padding(.horizontal, 10).frame(height: 26)
-                        .background(.quaternary, in: Capsule())
-                        .contentShape(Capsule())
+                // Offered only when it would do something: the workspace is on a desktop that isn't showing
+                // (Go), or it is here but one of its files or apps is closed (Open). Folded: Release covers it.
+                if !item.isFolded, engine.away.contains(item.id) || engine.unopened.contains(item.id) {
+                    let away = engine.away.contains(item.id)
+                    Button { Task { await engine.activate(item.id) } } label: {
+                        Label(away ? "Go" : "Open", systemImage: away ? "arrow.up.forward" : "arrow.up.doc")
+                            .font(.callout.weight(.medium))
+                            .padding(.horizontal, 10).frame(height: 26)
+                            .background(.quaternary, in: Capsule())
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.primary)
+                    .help(away ? "Go to this workspace's desktop, gather its windows there and open its files"
+                               : "Open this workspace's files and apps that are closed")
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(.primary)
-                .help("Go to this workspace's desktop, gather its windows there and open its files")
                 Button { Task { item.isFolded ? await engine.release(item.id) : await engine.fold(item.id) } } label: {
                     Label(item.isFolded ? "Release" : "Fold",
                           systemImage: item.isFolded ? "arrow.up.left.and.arrow.down.right" : "arrow.down.right.and.arrow.up.left")

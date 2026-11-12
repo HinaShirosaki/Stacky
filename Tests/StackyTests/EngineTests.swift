@@ -142,6 +142,22 @@ final class EngineTests: XCTestCase {
         XCTAssertEqual(item.payloads.count, 2)
     }
 
+    func testStatusSaysWhenThereIsSomewhereToGoOrSomethingToOpen() async {
+        let e = await makeEngine()
+        await e.refreshStatus()
+        XCTAssertTrue(e.away.isEmpty && e.unopened.isEmpty, "everything is here and open: no Go button")
+
+        spaces.windowSpace = [1: 2] // A sits on a desktop that isn't showing
+        await e.refreshStatus()
+        XCTAssertEqual(e.away, [id(e)])
+
+        spaces.windowSpace = [:]
+        await mock.replace([]) // its app quit
+        await e.refreshStatus()
+        XCTAssertTrue(e.away.isEmpty)
+        XCTAssertEqual(e.unopened, [id(e)])
+    }
+
     func testRemoveWindowUnlinksOnlyThatWindow() async {
         let e = await makeEngine()
         e.removeWindow(e.items[0].windows[0].id, from: id(e))
