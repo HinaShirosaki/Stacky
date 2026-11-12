@@ -38,18 +38,43 @@ Recorded in a clean virtual machine with made-up documents.
 
 ## Install
 
-There are no prebuilt releases yet. Build from source with Xcode or the Swift toolchain installed:
+There are no prebuilt downloads yet, so Stacky is built on your Mac. It takes about a minute.
+
+**You need** macOS 14 or later and Apple's command line tools. If you're not sure you have them, run `xcode-select --install`; it says so if they're already installed. Full Xcode works too.
+
+**1. Build and install.** In Terminal:
 
 ```sh
-git clone <this repository>
+git clone https://github.com/HinaShirosaki/Stacky.git
 cd Stacky
-scripts/bundle.sh
-open build/Stacky.app
+scripts/install.sh
 ```
 
-`bundle.sh` signs the app with the first Developer ID or Apple Development identity in your keychain, or ad-hoc if there is none. With ad-hoc signing macOS forgets the Accessibility permission on every rebuild.
+This builds Stacky, copies it to `/Applications` (or `~/Applications` if you can't write there), and opens it. The stacked-layers icon appears in the menu bar.
 
-On first launch Stacky asks for **Accessibility** access (System Settings › Privacy & Security › Accessibility). It needs this to read, minimize, move and raise other apps' windows. Stacky is not sandboxed and makes no network connections.
+**2. Allow Accessibility.** Click the icon. A banner asks for Accessibility access and opens the right page in System Settings › Privacy & Security › Accessibility; turn Stacky on there. Stacky needs this to read, minimize, move and raise other apps' windows. It is not sandboxed and makes no network connections.
+
+**3. Optional: start at login.** System Settings › General › Login Items › Open at Login › **+**, then choose Stacky.
+
+### Update
+
+```sh
+cd Stacky
+git pull
+scripts/install.sh
+```
+
+Your workspaces are kept.
+
+### Uninstall
+
+Quit Stacky (right-click the list's background › Quit), then delete `Stacky.app` from Applications and the folder `~/Library/Application Support/Stacky`. Remove it from the Accessibility list in System Settings.
+
+### Troubleshooting
+
+- **No icon in the menu bar.** The menu bar may be full or hidden behind the notch. Quit another menu bar app, or ⌘-drag icons to make room. Stacky also opens its list as a window when its icon can't be seen.
+- **Stacky asks for Accessibility again after every update.** The build is signed with your Developer ID or Apple Development certificate if you have one (any free Apple account in Xcode › Settings › Accounts gives you one). Without one it is signed ad-hoc, and macOS treats each build as a new app: switch Stacky off and on again in the Accessibility list.
+- **`swift: command not found` or `xcrun: error`.** Run `xcode-select --install`, then `scripts/install.sh` again.
 
 ## Use
 
