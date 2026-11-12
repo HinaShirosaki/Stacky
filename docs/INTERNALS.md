@@ -47,6 +47,13 @@ Covered by mocked tests only; not yet run on a real multi-monitor setup. The per
 
 The list under the menu bar icon is not an `NSPopover`, which always draws a background and an arrow. It is a borderless, fully transparent window at pop-up-menu level, so only the cards (each with its own glass) are visible. It therefore handles what a popover does for free: it anchors itself under the icon and re-anchors when its content resizes, and it closes on a click elsewhere, when another app comes forward, and on Esc. The fallback window (shown when the icon is hidden) is the same view, centred.
 
+Three details that are easy to undo by accident:
+- The window is a **non-activating panel**. Stacky is rarely the active app, and a plain window in an inactive app spends the first click on a card just focusing itself.
+- `hidesOnDeactivate` is off, because panels otherwise vanish whenever their app is inactive.
+- The card glass is **tinted with the window colour**. Clear glass over a white window leaves secondary text unreadable.
+
+`--snapshot` gives the window an opaque backdrop, since a capture of one window does not include the desktop the glass samples. Captures come back empty while the screen is locked.
+
 ## Shared apps
 
 `ItemEngine.sharedApps` (bundle IDs, stored in user defaults) marks apps that every workspace uses. Fold, release and the card click filter their windows out, so a workspace never minimizes or moves them. The all-desktops assignment belongs to a running process, not to the app, so `pinSharedApps()` reapplies it when Stacky starts and whenever an app launches.
@@ -127,5 +134,7 @@ The other clips (`demo-link.gif`, `demo-desktops.gif`, `demo-reopen.gif`) are ma
 - `demo-sort.gif` needs windows spread over several desktops first: `spaces move <pid> <desktop number>` (from `spaces.swift`) moves all of an app's windows, and `hover` moves the pointer without clicking. In Mission Control the desktop thumbnails shift depending on which desktop is current, so measure their positions from a screenshot before scripting a click.
 
 Recording on macOS 26.6 also confirmed, outside the development machine, that `ProcessAssignToSpace` moves a folded workspace to another desktop.
+
+`seed-sort.py` writes the two workspaces used by `demo-sort.gif`.
 
 `docs/walkthrough.gif` needs no VM: `scripts/make-demo.sh` renders the app's own window against made-up data.

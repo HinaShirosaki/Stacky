@@ -18,7 +18,7 @@ def item(name, windows=(), payloads=(), folded=False):
 def thesis(folded=False):
     return item("Thesis", [win("com.apple.TextEdit", "thesis-draft.rtf"), win("com.apple.Preview", "references.pdf"), win("com.apple.Safari", "Library search")],
                 [doc("thesis-draft.rtf", "com.apple.TextEdit"), doc("references.pdf", "com.apple.Preview")], folded)
-website = item("Website", [win("com.apple.dt.Xcode", "Site"), win("com.apple.Terminal", "site — zsh"), win("com.apple.Safari", "localhost")])
+website = item("Website", [win("com.apple.TextEdit", "index.html"), win("com.apple.Terminal", "site — zsh"), win("com.apple.Safari", "localhost")])
 trip = item("Trip planning", [win("com.apple.Maps", "Maps"), win("com.apple.Notes", "Packing list"), win("com.apple.iCal", "Calendar")],
             [doc("budget.numbers", "com.apple.iWork.Numbers")])
 frames = [[], [item("Thesis")], [thesis()], [thesis(), website, trip], [thesis(True), website, trip], [thesis(), website, trip]]

@@ -47,6 +47,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             // Diagnostics: `open -n Stacky.app --args --snapshot /path/out.png` renders the UI to a PNG.
             let path = CommandLine.arguments[i + 1]
             showWindow(notice: false) // this instance has no menu bar icon by design
+            // The real window is transparent and its glass samples the desktop, which a capture of one window
+            // does not include. Give the render a plain backdrop to sit on.
+            window?.backgroundColor = NSColor(white: 0.86, alpha: 1)
+            window?.isOpaque = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [self] in
                 // CGWindowListCreateImage is hidden from the Swift SDK but still renders our own window, glass included.
                 typealias Capture = @convention(c) (CGRect, UInt32, UInt32, UInt32) -> Unmanaged<CGImage>?
@@ -176,6 +180,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.dropdown?.orderOut(nil) }
         }
+        // The panel can be key while another app is active, so losing key is the other sign the user moved on.
+        // One of our own popovers or menus taking key (the window picker, the linked list) is not.
+        NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification, object: nil, queue: .main) { [weak self] note in
+            MainActor.assumeIsolated {
+                guard let self, (note.object as? NSWindow) === self.dropdown else { return }
+                DispatchQueue.main.async { if NSApp.keyWindow == nil { self.dropdown?.orderOut(nil) } }
+            }
+        }
     }
 
     @objc func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
@@ -215,8 +227,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func makeCardsWindow(notice: String?) -> NSWindow {
         let host = NSHostingController(rootView: ItemsPopover(engine: engine, notice: notice))
         host.sizingOptions = .preferredContentSize // window tracks content as cards come and go
-        let w = GlassWindow(contentViewController: host)
-        w.styleMask = [.borderless]
+        // A non-activating panel takes clicks and typing straight away, whether or not Stacky is the active
+        // app. A plain window swallows the first click on a card just to focus itself. The style has to be
+        // given at creation; setting it afterwards does not take.
+        let w = GlassWindow(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        w.contentViewController = host
+        w.hidesOnDeactivate = false // panels hide when their app isn't active, which for this one is most of the time
         w.isOpaque = false
         w.backgroundColor = .clear
         w.hasShadow = false // a window shadow would outline the invisible rectangle around the cards
@@ -251,7 +267,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 }
 
 /// Borderless windows can't take keyboard focus by default; the name field and Esc need it.
-private final class GlassWindow: NSWindow {
+private final class GlassWindow: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
 }
@@ -262,7 +278,10 @@ extension View {
     @ViewBuilder
     func glass(in shape: some Shape, interactive: Bool = false) -> some View {
         if #available(macOS 26, *) {
-            glassEffect(interactive ? .regular.interactive() : .regular, in: shape)
+            // Tinted with the window colour: the cards float over whatever is on the desktop with no
+            // background behind them, and clear glass over a white window leaves grey text unreadable.
+            let tint = Color(nsColor: .windowBackgroundColor).opacity(0.6)
+            glassEffect(interactive ? .regular.tint(tint).interactive() : .regular.tint(tint), in: shape)
         } else {
             background(.regularMaterial, in: shape)
         }
