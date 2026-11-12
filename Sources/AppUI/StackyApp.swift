@@ -5,7 +5,7 @@ import WindowKit
 import SpacesKit
 import LaunchKit
 
-/// Plain AppKit entry point: all UI is the status item / popover / fallback window owned by AppDelegate.
+/// Plain AppKit entry point: all UI is the status item / dropdown / fallback window owned by AppDelegate.
 /// (A SwiftUI `App` would need a scene, and a lone `Settings` scene opens an empty window at launch.)
 @main @MainActor
 enum StackyApp {
@@ -19,7 +19,7 @@ enum StackyApp {
     }
 }
 
-/// Menu-bar app: the icon opens a popover. The icon can be hidden (notch overflow, System Settings › Menu Bar),
+/// Menu-bar app: the icon opens a dropdown of cards. The icon can be hidden (notch overflow, System Settings › Menu Bar),
 /// so the same UI is also reachable as a window when that happens, during onboarding, and on reopen.
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
@@ -28,7 +28,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         launcher: WorkspaceLauncher(), store: .default)
     private var window: NSWindow?
     private var statusItem: NSStatusItem?
-    private let popover = NSPopover()
+    /// The cards under the menu bar icon: a transparent window, so only the cards themselves are drawn.
+    private var dropdown: NSWindow?
 
     private let log = Logger(subsystem: "app.stacky.AppUI", category: "app")
 
@@ -163,27 +164,63 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         item.button?.window?.registerForDraggedTypes([.fileURL, .URL])
         item.button?.window?.delegate = self
 
-        let host = NSHostingController(rootView: ItemsPopover(engine: engine))
-        host.sizingOptions = .preferredContentSize // popover tracks content as cards come and go
-        popover.contentViewController = host
-        popover.behavior = .transient
+        // The dropdown is not an NSPopover (that always draws a background), so it dismisses itself:
+        // on a click anywhere else, and when another app comes forward.
+        NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+            MainActor.assumeIsolated {
+                // A click on our own icon is the toggle's business; on some systems it arrives here too.
+                guard let self, self.statusItem?.button?.window?.frame.contains(NSEvent.mouseLocation) != true else { return }
+                self.dropdown?.orderOut(nil)
+            }
+        }
+        NotificationCenter.default.addObserver(forName: NSApplication.didResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.dropdown?.orderOut(nil) }
+        }
     }
 
     @objc func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
-        if !popover.isShown { showPopover() }
+        if dropdown?.isVisible != true { showPopover() }
         return [] // the drop itself lands on an item card
     }
 
     @objc private func togglePopover() {
-        popover.isShown ? popover.performClose(nil) : showPopover()
+        dropdown?.isVisible == true ? dropdown?.orderOut(nil) : showPopover()
     }
 
     private func showPopover() {
-        guard let button = statusItem?.button else { return showWindow() }
-        window?.close()
+        guard statusItem?.button?.window != nil else { return showWindow() }
+        window?.orderOut(nil)
+        if dropdown == nil {
+            let d = makeCardsWindow(notice: nil)
+            d.level = .popUpMenu
+            // The window grows and shrinks with its cards from the bottom-left; keep its top under the icon.
+            NotificationCenter.default.addObserver(forName: NSWindow.didResizeNotification, object: d, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.anchorDropdown() }
+            }
+            dropdown = d
+        }
         NSApp.activate()
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-        popover.contentViewController?.view.window?.makeKey()
+        anchorDropdown()
+        dropdown?.makeKeyAndOrderFront(nil)
+    }
+
+    private func anchorDropdown() {
+        guard let d = dropdown, let icon = statusItem?.button?.window, let screen = icon.screen ?? NSScreen.main else { return }
+        let size = d.frame.size, area = screen.visibleFrame
+        let x = min(max(icon.frame.midX - size.width / 2, area.minX + 4), area.maxX - size.width - 4)
+        d.setFrameOrigin(NSPoint(x: x, y: icon.frame.minY - size.height))
+    }
+
+    /// A borderless, fully transparent window holding the cards; each card draws its own glass.
+    private func makeCardsWindow(notice: String?) -> NSWindow {
+        let host = NSHostingController(rootView: ItemsPopover(engine: engine, notice: notice))
+        host.sizingOptions = .preferredContentSize // window tracks content as cards come and go
+        let w = GlassWindow(contentViewController: host)
+        w.styleMask = [.borderless]
+        w.isOpaque = false
+        w.backgroundColor = .clear
+        w.hasShadow = false // a window shadow would outline the invisible rectangle around the cards
+        return w
     }
 
     /// False when the icon is switched off, occluded, or pushed behind the notch by a full menu bar.
@@ -199,19 +236,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // MARK: - Window
 
     private func showWindow(notice showNotice: Bool = true) {
-        popover.performClose(nil)
+        dropdown?.orderOut(nil)
         if window == nil {
             let notice = iconVisible || !showNotice ? nil
                 : "Stacky's menu bar icon is hidden: the menu bar is full or Stacky is off in System Settings › Menu Bar. Quit a menu bar app or ⌘-drag icons to make room."
-            let host = NSHostingController(rootView: ItemsPopover(engine: engine, outerGlass: true, notice: notice))
-            host.sizingOptions = .preferredContentSize // window tracks content as cards come and go
-            // Borderless: no title bar, so no traffic lights and no title-bar inset. The glass container
-            // *is* the window's visible shape; Esc / context menu close it.
-            let w = GlassWindow(contentViewController: host)
-            w.styleMask = [.borderless]
-            w.isOpaque = false
-            w.backgroundColor = .clear
-            w.hasShadow = true
+            let w = makeCardsWindow(notice: notice)
             w.isMovableByWindowBackground = true
             w.center()
             window = w
@@ -263,8 +292,6 @@ struct GlassGroup<Content: View>: View {
 
 struct ItemsPopover: View {
     @Bindable var engine: ItemEngine
-    /// Window mode draws its own outer glass; the menu-bar popover already has one.
-    var outerGlass = false
     var notice: String?
     @State private var trusted = Permissions.accessibilityGranted
     @State private var adding = false
@@ -272,11 +299,9 @@ struct ItemsPopover: View {
     @FocusState private var nameFocused: Bool
 
     private let spacing: CGFloat = 8
-    /// Gap between the container's edge and the cards.
-    private var inset: CGFloat { outerGlass ? 22 : 8 }
-    /// Concentric corners: container radius minus the gap. The system popover's corner measures 20 pt
-    /// (macOS 26/27); the window-mode glass is 36.
-    private var radius: CGFloat { (outerGlass ? 36 : 20) - inset }
+    /// Transparent margin around the cards, so their glass edges and shadows aren't clipped by the window.
+    private let inset: CGFloat = 10
+    private let radius: CGFloat = 18
 
     var body: some View {
         VStack(spacing: spacing) {
@@ -285,11 +310,14 @@ struct ItemsPopover: View {
                 Label(notice, systemImage: "menubar.rectangle")
                     .font(.caption).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .modifier(note)
             }
             // Scroll only past 4 cards: a ScrollView has no intrinsic height and would leave empty space.
             if engine.items.isEmpty {
                 Text("Create a workspace, then link windows to it or drop files on it.")
                     .font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .modifier(note)
             }
             if engine.items.count > 4 {
                 ScrollView { cards }.frame(height: 4 * ItemCard.height + 3 * spacing)
@@ -299,13 +327,13 @@ struct ItemsPopover: View {
             addRow
             if let error = engine.lastError {
                 Text(error).font(.caption).foregroundStyle(.red).frame(maxWidth: .infinity, alignment: .leading)
+                    .modifier(note)
             }
         }
         .padding(inset)
         .frame(width: 340)
-        .modifier(OuterGlass(enabled: outerGlass))
         .contextMenu { settingsMenu }
-        .onExitCommand { if outerGlass { NSApp.keyWindow?.close() } }
+        .onExitCommand { NSApp.keyWindow?.orderOut(nil) }
         .animation(.smooth, value: trusted)
         .onAppear { Task { await engine.refreshSpace() } }
         .task {
@@ -317,6 +345,9 @@ struct ItemsPopover: View {
             }
         }
     }
+
+    /// There is no background behind the list, so loose text gets a small glass card of its own.
+    private var note: Note { Note(radius: radius) }
 
     private var cards: some View {
         GlassGroup(spacing: spacing) {
@@ -394,7 +425,6 @@ struct ItemsPopover: View {
             Text("Hide App").tag(FoldStrategyKind.appHide)
         }
         Divider()
-        if outerGlass { Button("Close Window") { NSApp.keyWindow?.close() } }
         Button("Quit Stacky") { NSApp.terminate(nil) }
     }
 
@@ -418,14 +448,11 @@ struct ItemsPopover: View {
     }
 }
 
-private struct OuterGlass: ViewModifier {
-    let enabled: Bool
+private struct Note: ViewModifier {
+    let radius: CGFloat
     func body(content: Content) -> some View {
-        if enabled {
-            content.glass(in: RoundedRectangle(cornerRadius: 36, style: .continuous))
-        } else {
-            content
-        }
+        content.padding(.horizontal, 12).padding(.vertical, 10)
+            .glass(in: RoundedRectangle(cornerRadius: radius, style: .continuous))
     }
 }
 

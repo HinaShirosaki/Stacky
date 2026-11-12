@@ -43,6 +43,10 @@ A workspace can span monitors. Each linked window's frame and desktop are saved 
 
 Covered by mocked tests only; not yet run on a real multi-monitor setup. The per-app move fallback (see Status) is at its worst here: moving one window of an app can drag that app's windows from another monitor along.
 
+## The dropdown
+
+The list under the menu bar icon is not an `NSPopover`, which always draws a background and an arrow. It is a borderless, fully transparent window at pop-up-menu level, so only the cards (each with its own glass) are visible. It therefore handles what a popover does for free: it anchors itself under the icon and re-anchors when its content resizes, and it closes on a click elsewhere, when another app comes forward, and on Esc. The fallback window (shown when the icon is hidden) is the same view, centred.
+
 ## Shared apps
 
 `ItemEngine.sharedApps` (bundle IDs, stored in user defaults) marks apps that every workspace uses. Fold, release and the card click filter their windows out, so a workspace never minimizes or moves them. The all-desktops assignment belongs to a running process, not to the app, so `pinSharedApps()` reapplies it when Stacky starts and whenever an app launches.
