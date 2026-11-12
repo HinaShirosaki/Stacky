@@ -5,10 +5,10 @@
 set -e
 cd "$(dirname "$0")/.."
 pkill -x Stacky && sleep 1 || true   # a running copy would keep the old binary and swallow `open`
-swift build -c release
+swift build -c release $ARCHS   # ARCHS="--arch arm64 --arch x86_64" builds a universal binary
 APP=build/Stacky.app
 rm -rf "$APP" && mkdir -p "$APP/Contents/MacOS"
-cp .build/release/Stacky "$APP/Contents/MacOS/"
+cp "$(swift build -c release $ARCHS --show-bin-path)/Stacky" "$APP/Contents/MacOS/"
 mkdir -p "$APP/Contents/Resources" && cp Resources/AppIcon.icns "$APP/Contents/Resources/"   # regenerate: swift scripts/make-icon.swift
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

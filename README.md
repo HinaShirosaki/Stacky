@@ -14,13 +14,7 @@ A paper, a codebase and a grant report each have their own editor windows, PDFs,
 
 ## Quick start
 
-```sh
-git clone https://github.com/HinaShirosaki/Stacky.git
-cd Stacky
-scripts/install.sh
-```
-
-Then click the stacked-layers icon in the menu bar and allow Accessibility access when asked. For requirements, updating and troubleshooting, see [Install](#install).
+[**Download the latest release**](https://github.com/HinaShirosaki/Stacky/releases/latest), unzip it and drag Stacky to Applications. The first time you open it, macOS blocks it because it isn't from an identified developer; [here's how to open it](#download). Then click the stacked-layers icon in the menu bar and allow Accessibility access when asked.
 
 ## What it does
 
@@ -55,11 +49,26 @@ Because a workspace links the files behind its windows, its **Go** button reopen
 
 ## Install
 
-There are no prebuilt downloads yet, so Stacky is built on your Mac. It takes about a minute.
+Stacky needs macOS 14 or later, on Apple silicon or Intel. Download it, or build it yourself.
 
-**You need** macOS 14 or later and Apple's command line tools. If you're not sure you have them, run `xcode-select --install`; it says so if they're already installed. Full Xcode works too.
+### Download
 
-**1. Build and install.** In Terminal:
+1. Download `Stacky-<version>.zip` from the [latest release](https://github.com/HinaShirosaki/Stacky/releases/latest), unzip it, and drag **Stacky** into Applications.
+2. Open Stacky. macOS says it can't verify the developer, because Stacky isn't signed with a paid Apple Developer ID. Click **Done** (not Move to Trash).
+3. Open System Settings › Privacy & Security, scroll to Security, and click **Open Anyway** next to the message about Stacky. Confirm with your password. You only do this once.
+
+   If you prefer Terminal, this does the same:
+
+   ```sh
+   xattr -dr com.apple.quarantine /Applications/Stacky.app
+   ```
+
+4. **Allow Accessibility.** Click the stacked-layers icon in the menu bar. A banner asks for Accessibility access and opens System Settings › Privacy & Security › Accessibility; turn Stacky on there. Stacky needs this to read, minimize, move and raise other apps' windows. It is not sandboxed and makes no network connections.
+5. **Optional: start at login.** System Settings › General › Login Items › Open at Login › **+**, then choose Stacky.
+
+### Build from source
+
+Building it yourself skips the Gatekeeper step and, if you have an Apple Development certificate, keeps Accessibility granted across updates. You need Apple's command line tools: run `xcode-select --install` (it says so if they're already installed). Full Xcode works too.
 
 ```sh
 git clone https://github.com/HinaShirosaki/Stacky.git
@@ -67,21 +76,14 @@ cd Stacky
 scripts/install.sh
 ```
 
-This builds Stacky, copies it to `/Applications` (or `~/Applications` if you can't write there), and opens it. The stacked-layers icon appears in the menu bar.
-
-**2. Allow Accessibility.** Click the icon. A banner asks for Accessibility access and opens the right page in System Settings › Privacy & Security › Accessibility; turn Stacky on there. Stacky needs this to read, minimize, move and raise other apps' windows. It is not sandboxed and makes no network connections.
-
-**3. Optional: start at login.** System Settings › General › Login Items › Open at Login › **+**, then choose Stacky.
+This builds Stacky (about a minute), copies it to `/Applications` (or `~/Applications` if you can't write there), and opens it. Then allow Accessibility as in step 4 above.
 
 ### Update
 
-```sh
-cd Stacky
-git pull
-scripts/install.sh
-```
+- **Downloaded:** quit Stacky, download the new release and replace the app in Applications. Downloads are signed ad-hoc, so macOS sees each version as a new app: in Privacy & Security › Accessibility, remove Stacky with **−** and turn the new one on.
+- **Built from source:** `git pull`, then `scripts/install.sh` again.
 
-Your workspaces are kept.
+Your workspaces are kept either way.
 
 ### Uninstall
 
@@ -90,7 +92,7 @@ Quit Stacky (gear button › Quit), then delete `Stacky.app` from Applications a
 ### Troubleshooting
 
 - **No icon in the menu bar.** The menu bar may be full or hidden behind the notch. Quit another menu bar app, or ⌘-drag icons to make room. When its icon can't be seen, Stacky opens its list as a window instead.
-- **Stacky asks for Accessibility again after every update.** The build is signed with your Developer ID or Apple Development certificate if you have one (any free Apple account in Xcode › Settings › Accounts gives you one). Without one it is signed ad-hoc, and macOS treats each build as a new app: switch Stacky off and on again in the Accessibility list.
+- **Stacky asks for Accessibility again after every update.** Downloaded releases are signed ad-hoc, so this happens once per update; see [Update](#update). When you build from source, the build is signed with your Developer ID or Apple Development certificate if you have one (any free Apple account in Xcode › Settings › Accounts gives you one). Without one it is signed ad-hoc, and macOS treats each build as a new app: switch Stacky off and on again in the Accessibility list.
 - **`swift: command not found` or `xcrun: error`.** Run `xcode-select --install`, then `scripts/install.sh` again.
 
 ## Use
@@ -147,6 +149,7 @@ Developed and tested on macOS 27.
 ```sh
 swift test                      # engine and matching logic, with mocked windows and desktops
 scripts/bundle.sh               # build/Stacky.app without installing it
+scripts/release.sh              # universal, ad-hoc-signed build/Stacky-<version>.zip for a GitHub release
 swift scripts/make-icon.swift   # regenerate the icon
 scripts/make-demo.sh            # regenerate docs/walkthrough.gif from made-up workspaces
 ```
