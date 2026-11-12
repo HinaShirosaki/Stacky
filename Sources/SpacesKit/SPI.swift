@@ -36,6 +36,11 @@ enum SPI {
     static let processAssignToSpace = sym(skyLight, "SLSProcessAssignToSpace", "CGSProcessAssignToSpace",
                                           as: (@convention(c) (Int32, Int32, UInt64) -> Int32).self)
 
+    /// The Dock's "Assign To: All Desktops": every window of the process shows on every desktop.
+    /// Undone by assigning the process to one Space and then clearing that with Space 0.
+    static let processAssignToAllSpaces = sym(skyLight, "SLSProcessAssignToAllSpaces", "CGSProcessAssignToAllSpaces",
+                                              as: (@convention(c) (Int32, Int32) -> Int32).self)
+
     // HIServices (Accessibility).
     static let axGetWindow = sym(hiServices, "_AXUIElementGetWindow",
                                  as: (@convention(c) (AXUIElement, UnsafeMutablePointer<CGWindowID>) -> AXError).self)

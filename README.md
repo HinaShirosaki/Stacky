@@ -91,8 +91,9 @@ Click the Stacky icon in the menu bar.
 | Fold / release | The **Fold** / **Release** button on a card |
 | Go to a workspace | Click the card |
 | Delete a workspace | Right-click the card |
+| Mark an app as shared | The gear button › **Shared Apps** |
 
-Right-click the list's background to choose how folding works (minimize windows, or hide whole apps) and to quit.
+The gear button (or a right-click on the list's background) also sets how folding works (minimize windows, or hide whole apps) and quits Stacky.
 
 ### What gets linked with a window
 
@@ -105,9 +106,18 @@ Right-click the list's background to choose how folding works (minimize windows,
 
 The last rule is a best guess; if it picks the wrong file, remove it from the card's list.
 
+### Shared apps
+
+Some apps serve every task: Mail, chat, music. Mark them under the gear button › **Shared Apps** and Stacky will:
+
+- show their windows on every desktop, so they follow you;
+- never fold or move them for one workspace, even if a window of theirs is linked to it.
+
+The list offers the apps that are running. Unmarking an app puts its windows back on the desktop you are on.
+
 ## Limitations
 
-- **Moving a window to another desktop moves its whole app.** macOS no longer lets one app move another app's individual windows between desktops. Stacky uses the one call that still works, which moves every window of that app. Folding and releasing without changing desktop moves nothing.
+- **Moving a window to another desktop moves its whole app.** For an app used by several workspaces, mark it as shared (above) so it is left alone. macOS no longer lets one app move another app's individual windows between desktops. Stacky uses the one call that still works, which moves every window of that app. Folding and releasing without changing desktop moves nothing.
 - **Private system calls.** Desktop (Spaces) support uses undocumented macOS functions that Apple can change in any update. If they disappear, Stacky falls back to working on the current desktop only.
 - **Not linked automatically:** JetBrains, Zed and Sublime project folders, Finder windows, browser tabs, and windows with no title.
 - **Multiple monitors** are covered by automated tests but have not yet been run on real multi-monitor hardware.

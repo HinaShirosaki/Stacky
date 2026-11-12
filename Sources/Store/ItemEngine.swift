@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Foundation
 import Observation
@@ -18,6 +19,11 @@ public final class ItemEngine {
     /// The desktops currently showing, one per monitor.
     public private(set) var visibleSpaces: Set<SpaceID> = []
     public var lastError: String?
+    /// Bundle IDs of apps every workspace uses (Mail, chat, music). Their windows show on every desktop and
+    /// are never folded or moved for one workspace, since that would take them away from the others.
+    public private(set) var sharedApps: Set<String> {
+        didSet { UserDefaults.standard.set(sharedApps.sorted(), forKey: "sharedApps") }
+    }
     public var defaultStrategy: FoldStrategyKind {
         didSet { UserDefaults.standard.set(defaultStrategy.rawValue, forKey: "foldStrategy") }
     }
@@ -49,6 +55,7 @@ public final class ItemEngine {
         self.launcher = launcher
         self.store = store
         items = store.load()
+        sharedApps = Set(UserDefaults.standard.stringArray(forKey: "sharedApps") ?? [])
         defaultStrategy = UserDefaults.standard.string(forKey: "foldStrategy").flatMap(FoldStrategyKind.init) ?? .minimize
     }
 
@@ -141,6 +148,30 @@ public final class ItemEngine {
         return hit
     }
 
+    // MARK: - Shared apps
+
+    public func setShared(_ bundleID: String, _ shared: Bool) async {
+        if shared { sharedApps.insert(bundleID) } else { sharedApps.remove(bundleID) }
+        for app in NSRunningApplication.runningApplications(withBundleIdentifier: bundleID) {
+            await spaces.setOnAllDesktops(app.processIdentifier, shared)
+        }
+    }
+
+    /// The all-desktops assignment belongs to a running process, so it is applied again whenever Stacky or
+    /// a shared app starts.
+    public func pinSharedApps() async {
+        for id in sharedApps {
+            for app in NSRunningApplication.runningApplications(withBundleIdentifier: id) {
+                await spaces.setOnAllDesktops(app.processIdentifier, true)
+            }
+        }
+    }
+
+    /// The windows a workspace may fold or move: everything linked except shared apps' windows.
+    private func own(_ bound: [(index: Int, window: LiveWindow)]) -> [(index: Int, window: LiveWindow)] {
+        bound.filter { !sharedApps.contains($0.window.bundleID) }
+    }
+
     public func refreshSpace() async {
         let shown = await spaces.layout().map(\.current)
         if let active = await spaces.currentSpace() { visibleSpaces = Set(shown + [active]) } else { visibleSpaces = Set(shown) }
@@ -155,7 +186,7 @@ public final class ItemEngine {
     private func fold(_ item: inout Item) async throws {
         guard case .released = item.state else { return }
         let kind = item.foldStrategy ?? defaultStrategy
-        let bound = try await rebind(&item)
+        let bound = own(try await rebind(&item))
         for (i, w) in bound {
             item.windows[i].savedFrame = w.frame
             item.windows[i].savedZ = w.zOrder
@@ -169,7 +200,7 @@ public final class ItemEngine {
         guard case .folded(let kind) = item.state else { return }
         let active = await spaces.currentSpace()
         let layout = await spaces.layout()
-        let bound = try await rebind(&item)
+        let bound = own(try await rebind(&item))
         // Each window returns to the monitor it was folded on, onto whatever desktop that monitor shows now.
         // A window whose monitor is gone (or unknown) comes to the desktop in front of the user.
         var groups: [SpaceID: [CGWindowID]] = [:]
@@ -220,7 +251,7 @@ public final class ItemEngine {
             let active = await spaces.currentSpace()
             let layout = await spaces.layout()
             var location: [CGWindowID: SpaceID] = [:]
-            for b in bound {
+            for b in own(bound) {
                 if let id = b.window.windowID, let space = await spaces.space(of: id) { location[id] = space }
             }
             // Monitors are handled one by one: a window never changes monitor, only desktop.

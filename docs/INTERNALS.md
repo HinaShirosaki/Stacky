@@ -43,6 +43,12 @@ A workspace can span monitors. Each linked window's frame and desktop are saved 
 
 Covered by mocked tests only; not yet run on a real multi-monitor setup. The per-app move fallback (see Status) is at its worst here: moving one window of an app can drag that app's windows from another monitor along.
 
+## Shared apps
+
+`ItemEngine.sharedApps` (bundle IDs, stored in user defaults) marks apps that every workspace uses. Fold, release and the card click filter their windows out, so a workspace never minimizes or moves them. The all-desktops assignment belongs to a running process, not to the app, so `pinSharedApps()` reapplies it when Stacky starts and whenever an app launches.
+
+Live check: `STACKY_STICKY_PID=<pid> STACKY_STICKY_WINDOW=<window id> swift test --filter AllDesktops`.
+
 ## Permissions
 
 - **Accessibility** (required): reads window titles, frames and documents, and minimizes, moves and raises windows. The popover shows a banner that deep-links to the settings pane. If the permission is revoked while the app runs, operations stop with an error and item state is left unchanged.
@@ -77,6 +83,7 @@ All SPI lives in `Sources/SpacesKit/SkyLightSpacesBridge.swift`. Nothing is link
 | `SpaceGetType` | refuse moves into fullscreen/system Spaces | stable |
 | `MoveWindowsToManagedSpace` | Release onto current Space | **since macOS 14.5, ignored for other processes' windows** |
 | `ProcessAssignToSpace` | fallback for the above; whole-app granularity | works on 27.2; may be restricted in any update |
+| `ProcessAssignToAllSpaces` | shared apps: show an app's windows on every desktop | works on 27.2; undone with `ProcessAssignToSpace` (current Space, then 0) |
 | `_AXUIElementGetWindow` (HIServices) | exact AX element → CGWindowID | stable, used by most window managers |
 | `_AXUIElementCreateWithRemoteToken` (HIServices) | AX elements for windows on other Spaces (AltTab's technique) | token layout could change; probing is time-boxed |
 

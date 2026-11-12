@@ -32,6 +32,21 @@ final class SkyLightTests: XCTestCase {
         let back = await bridge.move([w], to: home)
         XCTAssertTrue(back)
     }
+
+    /// Opt-in live check against another process: STACKY_STICKY_PID=<pid> STACKY_STICKY_WINDOW=<one of its window ids>
+    /// swift test --filter AllDesktops   (needs at least two desktops)
+    func testShowOnAllDesktopsAndBack() async throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let bridge = SkyLightSpacesBridge(), let pid = env["STACKY_STICKY_PID"].flatMap(pid_t.init),
+              let window = env["STACKY_STICKY_WINDOW"].flatMap(CGWindowID.init)
+        else { throw XCTSkip("set STACKY_STICKY_PID and STACKY_STICKY_WINDOW") }
+        let desktops = await bridge.layout().flatMap(\.spaces).count
+        await bridge.setOnAllDesktops(pid, true)
+        XCTAssertGreaterThan(WindowSPI.spaces(of: window).count, 1, "window should be on every desktop (\(desktops) known)")
+        await bridge.setOnAllDesktops(pid, false)
+        let here = await bridge.currentSpace()
+        XCTAssertEqual(WindowSPI.spaces(of: window), [here].compactMap { $0 })
+    }
 }
 
 final class WindowSPITests: XCTestCase {

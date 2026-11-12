@@ -54,6 +54,7 @@ final class MockSpaces: SpacesBridge, @unchecked Sendable {
     func space(of window: CGWindowID) async -> SpaceID? { windowSpace[window] ?? current }
     func switchTo(_ space: SpaceID) async -> Bool { switched.append(space); current = space; return true }
     func move(_ windows: [CGWindowID], to space: SpaceID) async -> Bool { moved.append((windows, space)); return true }
+    func setOnAllDesktops(_ pid: pid_t, _ on: Bool) async {}
 }
 
 final class MockLauncher: Launching {
@@ -303,6 +304,26 @@ final class EngineTests: XCTestCase {
         await e.release(id(e))
         let frame = await mock.live.first { $0.title == "B" }!.frame
         XCTAssertEqual(frame, fB)
+    }
+
+    func testSharedAppIsNeitherFoldedNorMoved() async {
+        let e = await makeEngine()
+        let live = await mock.live
+        await e.toggleWindow(live[2], among: live, in: id(e)) // link C, an app every workspace uses
+        await e.setShared("com.c", true)
+
+        await e.fold(id(e))
+        let minimized = await mock.live.filter(\.isMinimized).map(\.title)
+        XCTAssertEqual(minimized, ["A", "B"], "the shared window stays up for the other workspaces")
+        await e.release(id(e))
+
+        spaces.windowSpace = [1: 2, 2: 2, 3: 1] // A and B on desktop 2, shared C on 1
+        spaces.moved = []
+        await e.activate(id(e))
+        XCTAssertFalse(spaces.moved.contains { $0.0.contains(3) }, "going to a workspace must not drag a shared app along")
+        XCTAssertEqual(spaces.switched.last, 2)
+        await e.setShared("com.c", false) // the setting is persisted: don't leak it into other tests
+        XCTAssertTrue(e.sharedApps.isEmpty)
     }
 
     func testActivateFoldedItemReleasesFirst() async {

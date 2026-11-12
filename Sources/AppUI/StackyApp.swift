@@ -68,6 +68,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             if !trusted || !visible { showWindow() } else if engine.items.isEmpty { showPopover() }
         }
         if trusted { Task { _ = await engine.liveWindows() } } // warm the off-Space probe cache (~0.7 s cold, ~25 ms warm)
+        Task { await engine.pinSharedApps() }
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didLaunchApplicationNotification, object: nil, queue: .main
+        ) { [engine] _ in
+            Task { await engine.pinSharedApps() }
+        }
         if !trusted {
             // A process's AX trust can stay stale after the user grants it. The system posts this whenever
             // the Accessibility list changes; relaunch so the new grant takes effect. No loop: a relaunched
@@ -320,30 +326,43 @@ struct ItemsPopover: View {
         }
     }
 
-    @ViewBuilder
     private var addRow: some View {
-        if adding {
-            TextField("Workspace name", text: $newName)
-                .textFieldStyle(.plain)
-                .font(.callout)
-                .focused($nameFocused)
-                .padding(.horizontal, 12)
-                .frame(height: 32)
-                .glass(in: RoundedRectangle(cornerRadius: radius, style: .continuous))
-                // Focus set in the same pass that inserts the field is dropped; ask again once it is in the window.
-                .onAppear { DispatchQueue.main.async { nameFocused = true } }
-                .onSubmit(commitNew)
-                .onExitCommand { adding = false; newName = "" }
-        } else {
-            Button { adding = true } label: {
-                Label("New Workspace", systemImage: "plus")
+        HStack(spacing: spacing) {
+            if adding {
+                TextField("Workspace name", text: $newName)
+                    .textFieldStyle(.plain)
+                    .font(.callout)
+                    .focused($nameFocused)
+                    .padding(.horizontal, 12)
+                    .frame(height: 32)
+                    .glass(in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+                    // Focus set in the same pass that inserts the field is dropped; ask again once it is in the window.
+                    .onAppear { DispatchQueue.main.async { nameFocused = true } }
+                    .onSubmit(commitNew)
+                    .onExitCommand { adding = false; newName = "" }
+            } else {
+                Button { adding = true } label: {
+                    Label("New Workspace", systemImage: "plus")
+                        .font(.callout.weight(.medium))
+                        .frame(maxWidth: .infinity, minHeight: 32)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .glass(in: RoundedRectangle(cornerRadius: radius, style: .continuous), interactive: true)
+                .help("New workspace")
+            }
+            Menu { settingsMenu } label: {
+                Image(systemName: "gearshape")
                     .font(.callout.weight(.medium))
-                    .frame(maxWidth: .infinity, minHeight: 32)
+                    .frame(width: 32, height: 32)
                     .contentShape(Rectangle())
             }
+            .menuStyle(.button)
             .buttonStyle(.plain)
+            .menuIndicator(.hidden)
+            .fixedSize()
             .glass(in: RoundedRectangle(cornerRadius: radius, style: .continuous), interactive: true)
-            .help("New workspace")
+            .help("Settings: shared apps, how folding works, quit")
         }
     }
 
@@ -361,6 +380,15 @@ struct ItemsPopover: View {
 
     @ViewBuilder
     private var settingsMenu: some View {
+        Menu("Shared Apps") {
+            Section("On every desktop; never folded or moved") {
+                ForEach(appChoices, id: \.id) { app in
+                    Toggle(app.name, isOn: Binding(
+                        get: { engine.sharedApps.contains(app.id) },
+                        set: { on in Task { await engine.setShared(app.id, on) } }))
+                }
+            }
+        }
         Picker("Fold by", selection: $engine.defaultStrategy) {
             Text("Minimize").tag(FoldStrategyKind.minimize)
             Text("Hide App").tag(FoldStrategyKind.appHide)
@@ -368,6 +396,18 @@ struct ItemsPopover: View {
         Divider()
         if outerGlass { Button("Close Window") { NSApp.keyWindow?.close() } }
         Button("Quit Stacky") { NSApp.terminate(nil) }
+    }
+
+    /// Apps that can be marked shared: the ones running now, plus any already marked that aren't running.
+    private var appChoices: [(id: String, name: String)] {
+        var names: [String: String] = [:]
+        for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular {
+            if let id = app.bundleIdentifier, id != Bundle.main.bundleIdentifier { names[id] = app.localizedName ?? id }
+        }
+        for id in engine.sharedApps where names[id] == nil {
+            names[id] = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id)?.deletingPathExtension().lastPathComponent ?? id
+        }
+        return names.map { (id: $0.key, name: $0.value) }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
     private func commitNew() {

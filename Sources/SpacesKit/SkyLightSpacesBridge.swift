@@ -80,6 +80,15 @@ public actor SkyLightSpacesBridge: SpacesBridge {
         return left.isEmpty
     }
 
+    public func setOnAllDesktops(_ pid: pid_t, _ on: Bool) {
+        if on {
+            _ = SPI.processAssignToAllSpaces?(cid, pid)
+        } else if let assign = SPI.processAssignToSpace, let here = currentSpace() {
+            _ = assign(cid, pid, here)
+            _ = assign(cid, pid, 0) // clear, or the app's later windows would keep opening on `here`
+        }
+    }
+
     private static func owner(of window: CGWindowID) -> pid_t? {
         let info = CGWindowListCopyWindowInfo([.optionIncludingWindow], window) as? [[String: Any]]
         return info?.first?[kCGWindowOwnerPID as String] as? pid_t

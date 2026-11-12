@@ -24,6 +24,8 @@ public protocol SpacesBridge: Sendable {
     func space(of window: CGWindowID) async -> SpaceID?
     func switchTo(_ space: SpaceID) async -> Bool
     func move(_ windows: [CGWindowID], to space: SpaceID) async -> Bool
+    /// Shows every window of the app on every desktop (`true`), or puts them back on the current one.
+    func setOnAllDesktops(_ pid: pid_t, _ on: Bool) async
 }
 
 /// Documented-API fallback: macOS exposes no Space IDs publicly, so everything is "unknown".
@@ -36,4 +38,5 @@ public struct PublicSpacesBridge: SpacesBridge {
     public func space(of window: CGWindowID) async -> SpaceID? { nil }
     public func switchTo(_ space: SpaceID) async -> Bool { false }
     public func move(_ windows: [CGWindowID], to space: SpaceID) async -> Bool { false }
+    public func setOnAllDesktops(_ pid: pid_t, _ on: Bool) async {}
 }
