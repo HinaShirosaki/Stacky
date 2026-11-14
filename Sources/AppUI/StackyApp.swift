@@ -205,9 +205,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if dropdown == nil {
             let d = makeCardsWindow(notice: nil)
             d.level = .popUpMenu
-            // The window grows and shrinks with its cards from the bottom-left; keep its top under the icon.
-            NotificationCenter.default.addObserver(forName: NSWindow.didResizeNotification, object: d, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.anchorDropdown() }
+            d.isMovable = false
+            // Every frame change (resizing with the cards, animated or not) is placed under the icon.
+            d.place = { [weak self] size in self?.dropdownOrigin(for: size) }
+            // The icon itself shifts when other menu bar items come and go; follow it.
+            for name in [NSWindow.didMoveNotification, NSWindow.didChangeScreenNotification] {
+                NotificationCenter.default.addObserver(forName: name, object: statusItem?.button?.window, queue: .main) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.anchorDropdown() }
+                }
             }
             dropdown = d
         }
@@ -218,14 +223,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func anchorDropdown() {
-        guard let d = dropdown, let icon = statusItem?.button?.window, let screen = icon.screen ?? NSScreen.main else { return }
-        let size = d.frame.size, area = screen.visibleFrame
+        guard let d = dropdown else { return }
+        d.setFrame(d.frame, display: true) // `place` moves it under the icon
+    }
+
+    /// Top-centred under the icon, kept on screen sideways.
+    private func dropdownOrigin(for size: NSSize) -> NSPoint? {
+        guard let icon = statusItem?.button?.window, let screen = icon.screen ?? NSScreen.main else { return nil }
+        let area = screen.visibleFrame
         let x = min(max(icon.frame.midX - size.width / 2, area.minX + 4), area.maxX - size.width - 4)
-        d.setFrameOrigin(NSPoint(x: x, y: icon.frame.minY - size.height))
+        return NSPoint(x: x, y: icon.frame.minY - size.height)
     }
 
     /// A borderless, fully transparent window holding the cards; each card draws its own glass.
-    private func makeCardsWindow(notice: String?) -> NSWindow {
+    private func makeCardsWindow(notice: String?) -> GlassWindow {
         let host = NSHostingController(rootView: ItemsPopover(engine: engine, notice: notice))
         host.sizingOptions = .preferredContentSize // window tracks content as cards come and go
         // A non-activating panel takes clicks and typing straight away, whether or not Stacky is the active
@@ -272,6 +283,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 private final class GlassWindow: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { true }
+
+    /// Where a frame of a given size goes. Set for the dropdown, whose top stays under the icon whatever
+    /// resizes or moves it: setFrameOrigin, setContentSize and animation steps all land here.
+    var place: ((NSSize) -> NSPoint?)?
+
+    override func setFrame(_ frameRect: NSRect, display flag: Bool) {
+        var r = frameRect
+        if let origin = place?(r.size) { r.origin = origin }
+        super.setFrame(r, display: flag)
+    }
 }
 
 // MARK: - Glass (Liquid Glass on macOS 26+, material before)
