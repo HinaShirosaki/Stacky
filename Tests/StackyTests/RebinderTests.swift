@@ -26,6 +26,18 @@ final class RebinderTests: XCTestCase {
         XCTAssertEqual(m[0]?.documentURL, a)
     }
 
+    func testEditorWindowSurvivesSwitchingFiles() {
+        let a = URL(fileURLWithPath: "/Users/me/Enana/src/a.py"), b = URL(fileURLWithPath: "/Users/me/Enana/docs/b.md")
+        let linked = fp(win("a.py — Enana", id: 7, doc: a))
+        // Same window, another file in front: still the linked window.
+        XCTAssertEqual(Rebinder.match([linked], to: [win("b.md — Enana", id: 7, doc: b)])[0]?.windowID, 7)
+        // After a restart the window ID is new, but it is the same project folder.
+        XCTAssertEqual(Rebinder.match([linked], to: [win("b.md — Enana", id: 99, doc: b)])[0]?.windowID, 99)
+        // A window on another project is not it, even with a file of the same name.
+        let other = URL(fileURLWithPath: "/Users/me/Other/a.py")
+        XCTAssertTrue(Rebinder.match([linked], to: [win("a.py — Other", id: 99, doc: other)]).isEmpty)
+    }
+
     func testTitleSurvivesAppRestart() {
         let m = Rebinder.match([fp(win("Project — Notes", id: 7))], to: [win("Project — Notes", id: 99)])
         XCTAssertEqual(m[0]?.windowID, 99)

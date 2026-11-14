@@ -91,8 +91,21 @@ public enum Rebinder {
     /// ponytail: index alone never binds, so untitled, document-less windows only rebind by CGWindowID (same login session).
     static func score(_ fp: WindowFingerprint, _ w: LiveWindow) -> Int? {
         guard fp.bundleID == w.bundleID else { return nil }
-        if let a = fp.documentURL, let b = w.documentURL, a != b { return nil }
-        if let id = fp.lastWindowID, id == w.windowID { return 1000 }
+        let sameID = fp.lastWindowID != nil && fp.lastWindowID == w.windowID
+        if let a = fp.documentURL, let b = w.documentURL, a != b {
+            // A different document usually means a different window. Two exceptions, both scored below a
+            // window that still shows the linked document (100):
+            // - the very same window now showing another file, as editors do when you switch files;
+            // - after a restart, an editor window on the same project: both files sit inside the folder
+            //   named at the end of the title ("main.py — Enana").
+            if sameID { return 90 }
+            if let project = projectName(fp.title), project == projectName(w.title),
+               a.pathComponents.contains(project), b.pathComponents.contains(project) {
+                return 60 + (fp.index == w.index ? 5 : 0)
+            }
+            return nil
+        }
+        if sameID { return 1000 }
         var s = 0
         if fp.documentURL != nil, fp.documentURL == w.documentURL { s += 100 }
         if !fp.title.isEmpty, fp.title == w.title {
@@ -103,6 +116,13 @@ public enum Rebinder {
         }
         if fp.index == w.index { s += 5 }
         return s >= 20 ? s : nil
+    }
+
+    /// The last part of an editor-style title, "file — project" → "project"; nil for titles without parts.
+    static func projectName(_ title: String) -> String? {
+        let parts = title.components(separatedBy: " — ")
+        guard parts.count > 1, let last = parts.last?.trimmingCharacters(in: .whitespaces), last.count >= 2 else { return nil }
+        return last
     }
 
     /// Token Jaccard similarity.
