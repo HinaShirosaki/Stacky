@@ -60,10 +60,12 @@ public struct WindowFingerprint: Codable, Hashable, Sendable {
     public var documentURL: URL?
     public var index: Int
     public var lastWindowID: CGWindowID?
+    /// The process the window belonged to when last seen. A different one now means the app restarted.
+    public var pid: pid_t?
 
     public init(_ w: LiveWindow) {
         bundleID = w.bundleID; title = w.title; documentURL = w.documentURL
-        index = w.index; lastWindowID = w.windowID
+        index = w.index; lastWindowID = w.windowID; pid = w.ref.pid
     }
 }
 
@@ -84,17 +86,35 @@ public enum Rebinder {
             out[p.fp] = live[p.w]
             used.insert(p.w)
         }
+        // An app that restarted (an update, a reboot) gives its windows new IDs, and a chat or browser window
+        // has a new title by then too, so nothing above recognises it. If the app left exactly one linked
+        // window unmatched and shows exactly one window nothing else claimed, that window is the one.
+        // Windows on a file are left out: the file says which window it is, and reopens it when it is gone.
+        // ponytail: one window per app only; an app that comes back with several retitled windows stays
+        // unmatched until relinked. Telling those apart needs more than the fingerprint holds (frame, tab URLs).
+        for bundle in Set(fps.map(\.bundleID)) {
+            let lost = fps.indices.filter { out[$0] == nil && fps[$0].bundleID == bundle }
+            let free = live.indices.filter { !used.contains($0) && live[$0].bundleID == bundle }
+            guard lost.count == 1, free.count == 1, fps[lost[0]].pid != live[free[0]].ref.pid,
+                  file(fps[lost[0]].documentURL) == nil, file(live[free[0]].documentURL) == nil else { continue }
+            out[lost[0]] = live[free[0]]
+        }
         return out
     }
+
+    /// Only a file tells windows apart. A browser reports the page address, which changes with every click.
+    private static func file(_ url: URL?) -> URL? { url.flatMap { $0.isFileURL ? $0 : nil } }
 
     /// nil = not a candidate.
     /// ponytail: index alone never binds, so untitled, document-less windows only rebind by CGWindowID (same login session).
     static func score(_ fp: WindowFingerprint, _ w: LiveWindow) -> Int? {
         guard fp.bundleID == w.bundleID else { return nil }
-        let sameID = fp.lastWindowID != nil && fp.lastWindowID == w.windowID
-        if let a = fp.documentURL, let b = w.documentURL, a != b {
-            // A different document usually means a different window. Two exceptions, both scored below a
-            // window that still shows the linked document (100):
+        // Window IDs start over at login, so an old ID can come back on another window of the same app.
+        let sameID = fp.lastWindowID != nil && fp.lastWindowID == w.windowID && (fp.pid == nil || fp.pid == w.ref.pid)
+        let a = file(fp.documentURL), b = file(w.documentURL)
+        if let a, let b, a != b {
+            // A different file usually means a different window. Two exceptions, both scored below a
+            // window that still shows the linked file (100):
             // - the very same window now showing another file, as editors do when you switch files;
             // - after a restart, an editor window on the same project: both files sit inside the folder
             //   named at the end of the title ("main.py — Enana").
@@ -113,6 +133,14 @@ public enum Rebinder {
         } else {
             let j = similarity(fp.title, w.title)
             if j >= 0.5 { s += Int(40 * j) }
+        }
+        // An editor window with no file open is titled after its folder alone ("Enana"): the same project
+        // as "main.py — Enana" when the one file known sits inside that folder.
+        if s < 60, let known = a ?? b, (a == nil) != (b == nil),
+           let project = projectName(fp.title) ?? projectName(w.title),
+           [fp.title, w.title].allSatisfy({ ($0 == project || projectName($0) == project) }),
+           known.pathComponents.contains(project) {
+            s = 60
         }
         if fp.index == w.index { s += 5 }
         return s >= 20 ? s : nil

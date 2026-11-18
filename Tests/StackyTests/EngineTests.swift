@@ -1,7 +1,7 @@
 import XCTest
 import WindowKit
 import SpacesKit
-import LaunchKit
+@testable import LaunchKit
 @testable import Store
 
 actor MockWindows: WindowProvider {
@@ -54,7 +54,9 @@ final class MockSpaces: SpacesBridge, @unchecked Sendable {
     func space(of window: CGWindowID) async -> SpaceID? { windowSpace[window] ?? current }
     func switchTo(_ space: SpaceID) async -> Bool { switched.append(space); current = space; return true }
     func move(_ windows: [CGWindowID], to space: SpaceID) async -> Bool { moved.append((windows, space)); return true }
-    func setOnAllDesktops(_ pid: pid_t, _ on: Bool) async {}
+    var assigned: [String] = []
+    func setOnAllDesktops(_ pid: pid_t, _ on: Bool) async { assigned.append("all \(on) \(pid)") }
+    func pin(_ pid: pid_t, to space: SpaceID) async { assigned.append("pin \(pid) \(space)") }
 }
 
 final class MockLauncher: Launching {
@@ -142,6 +144,20 @@ final class EngineTests: XCTestCase {
         XCTAssertEqual(item.payloads.count, 2)
     }
 
+    func testOldEditorLinkReopensItsFolderInsteadOfJustTheEditor() {
+        var item = Item(name: "Hikari")
+        let doc = URL(fileURLWithPath: "/Users/me/Enana/data/a.gbk"), folder = URL(fileURLWithPath: "/Users/me/Enana")
+        item.windows = [BoundWindow(fingerprint: WindowFingerprint(win("a.gbk — Enana", bid: "com.editor", id: 1, doc: doc))),
+                        BoundWindow(fingerprint: WindowFingerprint(win("Chat", bid: "com.chat", id: 2)))]
+        item.payloads = [.app(bundleID: "com.editor"), .app(bundleID: "com.chat")]
+        let resolve: (WindowFingerprint) -> URL? = { $0.bundleID == "com.editor" ? folder : nil }
+        item.linkEditorFolders(resolve)
+        XCTAssertEqual(item.payloads, [.app(bundleID: "com.chat"), .folder(folder, app: "com.editor")])
+        item.payloads.removeAll()
+        item.linkEditorFolders(resolve)
+        XCTAssertEqual(item.payloads, [], "a link the user removed stays removed")
+    }
+
     func testStatusSaysWhenThereIsSomewhereToGoOrSomethingToOpen() async {
         let e = await makeEngine()
         await e.refreshStatus()
@@ -187,6 +203,36 @@ final class EngineTests: XCTestCase {
         let raises = await mock.calls.filter { $0.hasPrefix("raise") }
         XCTAssertEqual(raises, ["raise B", "raise A"]) // back to front
         XCTAssertNil(e.lastError)
+    }
+
+    func testFoldShowsAnOffscreenAppOnlyWhenItCanBePinnedBack() async {
+        let e = await makeEngine()
+        spaces.windowSpace = [1: 2, 2: 2] // A and B on desktop 2, not showing; unlinked C (same pid) here on 1
+        await e.fold(id(e))
+        XCTAssertEqual(spaces.assigned, ["all true 1", "pin 1 1"], "C stays put on desktop 1")
+        await e.release(id(e))
+
+        await mock.replace(await mock.live + [win("D", bid: "com.c", id: 4, z: 3)])
+        spaces.windowSpace = [1: 2, 2: 2, 4: 3] // the app now also keeps D up on desktop 3
+        spaces.assigned = []
+        await e.fold(id(e))
+        XCTAssertEqual(spaces.assigned, [], "pinning would drag C or D off its desktop")
+        XCTAssertEqual(e.items[0].state, .folded(by: .minimize))
+    }
+
+    func testAddedFolderOpensInTheEditorAndFileStaysAFile() throws {
+        let dir = FileManager.default.temporaryDirectory.appending(path: "stacky-folder-\(UUID())")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let bare = URL(fileURLWithPath: dir.path.hasSuffix("/") ? String(dir.path.dropLast()) : dir.path, isDirectory: false)
+        if let editor = LaunchPayload.folderEditor() {
+            XCTAssertEqual(LaunchPayload(bare), .folder(bare, app: editor), "no trailing slash, still a folder")
+        } else {
+            XCTAssertEqual(LaunchPayload(bare), .file(bare))
+        }
+        let file = dir.appending(path: "a.txt")
+        try Data().write(to: file)
+        XCTAssertEqual(LaunchPayload(file), .file(file))
     }
 
     func testToggleWindowLinksAndUnlinks() async {

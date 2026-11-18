@@ -67,6 +67,10 @@ public final class ItemEngine {
             for i in items.indices { items[i].linkAppsOfWindows() }
             if (try? store.save(items)) != nil { UserDefaults.standard.set(true, forKey: "linkedAppsOfWindows") }
         }
+        if !UserDefaults.standard.bool(forKey: "linkedEditorFolders") {
+            for i in items.indices { items[i].linkEditorFolders() }
+            if (try? store.save(items)) != nil { UserDefaults.standard.set(true, forKey: "linkedEditorFolders") }
+        }
     }
 
     // MARK: - Editing
@@ -105,7 +109,7 @@ public final class ItemEngine {
         // An editor window with a folder open is recovered by its folder, not by whichever file is in front.
         // Otherwise the window's own document (a directory for Terminal), reopened in the same app; apps
         // that expose none get a lookup by window title.
-        let target = EditorFolders.folder(bundleID: w.bundleID, title: w.title)
+        let target = EditorFolders.folder(bundleID: w.bundleID, title: w.title, document: w.documentURL.flatMap { $0.isFileURL ? $0 : nil })
             ?? w.documentURL.flatMap { $0.isFileURL ? $0 : nil }
             ?? documentFinder(w.title, w.bundleID)
         // A window with no file behind it (Calculator, Mail, a browser) still links its app, so a click on the
@@ -224,8 +228,41 @@ public final class ItemEngine {
             item.windows[i].savedZ = w.zOrder
             if let wid = w.windowID { item.windows[i].savedSpace = await spaces.space(of: wid) }
         }
+        let pinned = kind == .minimize ? await showOffscreenApps(bound.map(\.window)) : [:]
+        // Minimizing straight away still lands on the old desktop (measured: 0.3 s is enough on 27.2).
+        if !pinned.isEmpty { try? await Task.sleep(for: unfoldSettle) }
         try await kind.strategy.fold(bound.map(\.window), using: windows)
+        if !pinned.isEmpty {
+            try? await Task.sleep(for: unfoldSettle) // the minimize animates; pinning mid-animation undoes it
+            for (pid, space) in pinned { await spaces.pin(pid, to: space) }
+        }
         item.state = .folded(by: kind)
+    }
+
+    /// A window on a desktop that isn't showing only minimizes once someone visits that desktop. Showing its
+    /// app on every desktop for a moment makes the minimize land now. Undoing that pins every window of the
+    /// app to one desktop, so it is done only for apps whose windows that stay up all sit on one desktop
+    /// (or there are none); other off-desktop windows keep minimizing late. Returns pid → desktop to pin to.
+    /// ponytail: an app with windows left up on two desktops is skipped; exact per-window undo needs the Dock scripting addition.
+    private func showOffscreenApps(_ folding: [LiveWindow]) async -> [pid_t: SpaceID] {
+        guard spaces.canMoveWindows, let live = try? await windows.windows() else { return [:] }
+        await refreshSpace()
+        var away: [pid_t: SpaceID] = [:]
+        for w in folding where !w.isMinimized {
+            if let id = w.windowID, let s = await spaces.space(of: id), !visibleSpaces.contains(s) { away[w.ref.pid] = s }
+        }
+        let folded = Set(folding.map(\.ref))
+        var pins: [pid_t: SpaceID] = [:]
+        for (pid, awaySpace) in away {
+            var staying: Set<SpaceID> = []
+            for w in live where w.ref.pid == pid && !w.isMinimized && !folded.contains(w.ref) {
+                if let id = w.windowID, let s = await spaces.space(of: id) { staying.insert(s) }
+            }
+            guard staying.count <= 1 else { continue }
+            pins[pid] = staying.first ?? awaySpace
+            await spaces.setOnAllDesktops(pid, true)
+        }
+        return pins
     }
 
     private func release(_ item: inout Item) async throws {

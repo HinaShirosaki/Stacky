@@ -49,6 +49,19 @@ public struct Item: Codable, Hashable, Identifiable, Sendable {
         }
     }
 
+    /// An editor window linked before folders were recognised left only "open the editor" behind, which
+    /// brings up whatever folder the editor had last. Replace that with the folder the window showed.
+    mutating func linkEditorFolders(_ folder: (WindowFingerprint) -> URL? = {
+        EditorFolders.folder(bundleID: $0.bundleID, title: $0.title, document: $0.documentURL)
+    }) {
+        let apps = Set(windows.map(\.fingerprint.bundleID)).filter { payloads.contains(.app(bundleID: $0)) }
+        for fp in windows.map(\.fingerprint) where apps.contains(fp.bundleID) {
+            guard let url = folder(fp) else { continue }
+            payloads.removeAll { $0 == .app(bundleID: fp.bundleID) }
+            if !payloads.contains(.folder(url, app: fp.bundleID)) { payloads.append(.folder(url, app: fp.bundleID)) }
+        }
+    }
+
     /// Idempotent launch: skip payloads that already have a live window bound to this item.
     func pendingPayloads(live: [LiveWindow]) -> [LaunchPayload] {
         /// A window already shows `url`: by its document, or (apps that expose none) by its name in the title.

@@ -3,8 +3,8 @@ import XCTest
 @testable import WindowKit
 
 func win(_ title: String, bid: String = "com.a", id: CGWindowID? = nil, doc: URL? = nil,
-         index: Int = 0, z: Int = 0, frame: CGRect = CGRect(x: 0, y: 0, width: 100, height: 100)) -> LiveWindow {
-    LiveWindow(ref: WindowHandle(pid: 1, key: Int(id ?? 0) * 1000 + index), windowID: id, bundleID: bid, title: title,
+         index: Int = 0, z: Int = 0, frame: CGRect = CGRect(x: 0, y: 0, width: 100, height: 100), pid: pid_t = 1) -> LiveWindow {
+    LiveWindow(ref: WindowHandle(pid: pid, key: Int(id ?? 0) * 1000 + index), windowID: id, bundleID: bid, title: title,
                documentURL: doc, index: index, frame: frame, isMinimized: false, zOrder: z)
 }
 
@@ -52,6 +52,37 @@ final class RebinderTests: XCTestCase {
         XCTAssertTrue(Rebinder.match([fp(win("Report.pdf", id: 1))], to: [win("Invoice.pdf", id: 2)]).isEmpty)
     }
 
+    func testRestartedAppKeepsItsOnlyWindowWhateverItsTitle() {
+        // A chat app updated and came back on another conversation: new process, new ID, new title.
+        let chat = fp(win("Build plugin", bid: "com.chat", id: 650))
+        let back = win("Justify risk", bid: "com.chat", id: 6028, pid: 2)
+        XCTAssertEqual(Rebinder.match([chat], to: [back])[0]?.windowID, 6028)
+        // Same process: the linked window was closed, and the one left is another window.
+        XCTAssertTrue(Rebinder.match([chat], to: [win("Justify risk", bid: "com.chat", id: 651)]).isEmpty)
+        // Two windows came back: no telling which.
+        XCTAssertTrue(Rebinder.match([chat], to: [back, win("Other", bid: "com.chat", id: 6029, pid: 2)]).isEmpty)
+        // A linked document that is closed is not replaced by whatever the app shows instead.
+        let doc = fp(win("key", bid: "com.word", id: 9, doc: URL(fileURLWithPath: "/tmp/key.docx")))
+        XCTAssertTrue(Rebinder.match([doc], to: [win("Poly", bid: "com.word", id: 90, pid: 2)]).isEmpty)
+        // An old window ID that came back on another process's window is not the linked window.
+        XCTAssertNil(Rebinder.score(chat, win("Justify risk", bid: "com.chat", id: 650, pid: 2)))
+    }
+
+    func testBrowserWindowSurvivesRestartOnAnotherPage() {
+        let a = URL(string: "https://example.com/q/1")!, b = URL(string: "https://example.com/q/2")!
+        let linked = fp(win("Grade Submission | Gradescope - Part of group - Chrome - Me", id: 7, doc: a))
+        let m = Rebinder.match([linked], to: [win("Inbox - Chrome - Me", id: 98, doc: b, pid: 2),
+                                              win("Grade Submission | Gradescope - Chrome - Me", id: 99, doc: b, pid: 2)])
+        XCTAssertEqual(m[0]?.windowID, 99)
+    }
+
+    func testEditorWindowWithNoFileOpenIsStillItsProject() {
+        let a = URL(fileURLWithPath: "/Users/me/Enana/src/a.py")
+        XCTAssertEqual(Rebinder.match([fp(win("a.py — Enana", id: 7, doc: a))], to: [win("Enana", id: 99, pid: 2)])[0]?.windowID, 99)
+        XCTAssertEqual(Rebinder.match([fp(win("Enana", id: 7))], to: [win("a.py — Enana", id: 99, doc: a, pid: 2)])[0]?.windowID, 99)
+        XCTAssertTrue(Rebinder.match([fp(win("a.py — Enana", id: 7, doc: a))], to: [win("Other", id: 99, pid: 2)]).isEmpty)
+    }
+
     func testNoDoubleAssignment() {
         let fps = [fp(win("Untitled", id: 1, index: 0)), fp(win("Untitled", id: 2, index: 1))]
         let m = Rebinder.match(fps, to: [win("Untitled", id: 11, index: 0), win("Untitled", id: 12, index: 1)])
@@ -71,6 +102,12 @@ final class EditorFoldersTests: XCTestCase {
         XCTAssertEqual(folder("peptide_counts"), "/Volumes/T7 pro/peptide_counts") // no editor open
         XCTAssertNil(folder("Welcome"))                                             // no folder
         XCTAssertNil(EditorFolders.folder(bundleID: "com.apple.Safari", title: "Enana"))
+        // A folder that is no longer open is read off the file the window showed.
+        let doc = URL(fileURLWithPath: "/Users/me/Projects/Gone/src/Gone/main.py")
+        XCTAssertEqual(EditorFolders.folder(bundleID: "com.microsoft.VSCode", title: "main.py — Gone", document: doc, storage: storage)?.path,
+                       "/Users/me/Projects/Gone")
+        XCTAssertNil(EditorFolders.enclosingFolder(title: "main.py — Elsewhere", document: doc))
+        XCTAssertNil(EditorFolders.enclosingFolder(title: "main.py", document: doc))
     }
 
     func testTitleToFileNameCandidates() {

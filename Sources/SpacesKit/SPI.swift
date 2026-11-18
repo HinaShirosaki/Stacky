@@ -92,7 +92,8 @@ public enum WindowSPI {
     /// AX only lists an app's windows on the current Space. This recreates AX elements for the others by
     /// probing remote element tokens (the technique AltTab uses) and returns those whose window ID is wanted.
     /// ponytail: linear probe of element IDs with a time budget; windows whose element ID lies past the budget
-    /// in very long-running apps stay invisible until the user visits their Space once.
+    /// in very long-running apps stay invisible until Stacky has seen them on the current Space once
+    /// (AXWindowProvider keeps the element from then on).
     public static func offSpaceWindows(pid: pid_t, wanted: Set<CGWindowID>,
                                        maxElementID: UInt64 = 2000, budget: TimeInterval = 0.15) -> [CGWindowID: AXUIElement] {
         guard !wanted.isEmpty, let create = SPI.axCreateWithRemoteToken, SPI.axGetWindow != nil else { return [:] }
