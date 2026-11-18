@@ -9,10 +9,16 @@ public actor AXWindowProvider: WindowProvider {
     public nonisolated var unownedExecutor: UnownedSerialExecutor { queue.asUnownedSerialExecutor() }
 
     private var cache: [WindowHandle: AXUIElement] = [:]
-    /// Off-Space windows found by probing, reused while still valid (probing is the expensive part).
+    /// Every standard window seen so far, whether listed by its app or found by probing. An element stays
+    /// valid when its window moves to another desktop, where the app no longer lists it, so a window seen
+    /// once is never probed for again (probing is the expensive part, and can miss).
     private var offSpaceElements: [CGWindowID: AXUIElement] = [:]
-    /// Off-Space window IDs probing couldn't turn into standard AX windows (toolbars, panels): don't re-probe.
+    /// Off-Space window IDs probing turned into something that isn't a standard window (toolbars, panels): don't re-probe.
     private var unprobeable: Set<CGWindowID> = []
+    /// Off-Space window IDs probing didn't find, with the number of tries and the time of the last. An app
+    /// that is still starting (after an update, say) answers late, so these get two more tries, spaced out.
+    private var missed: [CGWindowID: (tries: Int, last: Date)] = [:]
+    private static let retryAfter: [TimeInterval] = [0, 5, 60]
     private let log = Logger(subsystem: "app.stacky.WindowKit", category: "ax")
 
     public init() {
@@ -54,6 +60,7 @@ public actor AXWindowProvider: WindowProvider {
                 let cgw = hit.map { pool.remove(at: $0) }
                 let ref = WindowHandle(pid: pid, key: Int(bitPattern: CFHash(w)))
                 fresh[ref] = w
+                if let exact { offSpaceElements[exact] = w }
                 out.append(LiveWindow(
                     ref: ref, windowID: cgw?.id ?? exact, bundleID: bundleID, title: title,
                     documentURL: (attribute(w, kAXDocumentAttribute) as String?).flatMap(URL.init(string:)),
@@ -63,6 +70,11 @@ public actor AXWindowProvider: WindowProvider {
             }
         }
         cache = fresh
+        // Closed windows: forget them, their IDs are not reused within a login session.
+        let alive = Set(cg.map(\.id))
+        offSpaceElements = offSpaceElements.filter { alive.contains($0.key) }
+        unprobeable.formIntersection(alive)
+        missed = missed.filter { alive.contains($0.key) }
         return out
     }
 
@@ -124,28 +136,32 @@ public actor AXWindowProvider: WindowProvider {
     private func offSpaceWindows(pid: pid_t, pool: [CGWin], seen: Set<CGWindowID>, current: SpaceID?) -> [AXUIElement] {
         guard WindowSPI.canFindOffSpaceWindows, let current else { return [] }
         let offSpace = pool.map(\.id).filter { id in
-            guard !seen.contains(id), !unprobeable.contains(id) else { return false }
+            guard !seen.contains(id) else { return false }
             let spaces = WindowSPI.spaces(of: id)
             return !spaces.isEmpty && !spaces.contains(current)
         }
-        guard !offSpace.isEmpty else { return [] }
-
         var result: [AXUIElement] = []
         var missing = Set<CGWindowID>()
         for id in offSpace {
             // A cached element is still good if it still answers for the same window.
-            if let e = offSpaceElements[id], WindowSPI.windowID(of: e) == id { result.append(e) } else { missing.insert(id) }
+            if let e = offSpaceElements[id], WindowSPI.windowID(of: e) == id { result.append(e) }
+            else if !unprobeable.contains(id), mayProbe(id) { missing.insert(id) }
         }
         if !missing.isEmpty {
             let found = WindowSPI.offSpaceWindows(pid: pid, wanted: missing)
-            for (id, e) in found where isStandardWindow(e) {
+            for (id, e) in found {
+                guard isStandardWindow(e) else { unprobeable.insert(id); continue }
                 offSpaceElements[id] = e
                 result.append(e)
             }
-            // Found but not a standard window, or not found within the probe budget: stop asking.
-            unprobeable.formUnion(missing.subtracting(found.filter { isStandardWindow($0.value) }.keys))
+            for id in missing.subtracting(found.keys) { missed[id] = ((missed[id]?.tries ?? 0) + 1, Date()) }
         }
         return result
+    }
+
+    private func mayProbe(_ id: CGWindowID) -> Bool {
+        guard let m = missed[id] else { return true }
+        return m.tries < Self.retryAfter.count && Date().timeIntervalSince(m.last) >= Self.retryAfter[m.tries]
     }
 
     /// An app's AX windows. An app that is busy answers "cannot complete"; skipping it would make its windows

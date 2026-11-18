@@ -593,7 +593,7 @@ struct ItemCard: View {
             .foregroundStyle(isLinking ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
             .help(isLinking ? "Stop linking" : "Link by clicking windows")
             Menu {
-                Button("Add Files or Apps…", action: pickFiles)
+                Button("Add Files, Folders or Apps…", action: pickFiles)
                 Button("Add URL from Clipboard") {
                     if let s = NSPasteboard.general.string(forType: .string), let url = URL(string: s), url.scheme != nil {
                         engine.addPayloads([LaunchPayload(url)], to: item.id)
@@ -605,7 +605,7 @@ struct ItemCard: View {
             .menuStyle(.button) // with the plain button style below, so it takes the same colour as its neighbours
             .menuIndicator(.hidden)
             .fixedSize()
-            .help("Add files, apps or a URL. You can also drop them on this card.")
+            .help("Add files, folders, apps or a URL. You can also drop them on this card. A folder opens in VS Code.")
         }
         .buttonStyle(.plain) // plain honours the foreground style; borderless would draw its own colour
         .foregroundStyle(.primary) // full strength: grey icons read as disabled
@@ -679,7 +679,7 @@ struct ItemCard: View {
     private func pickFiles() {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = true
-        panel.canChooseDirectories = false
+        panel.canChooseDirectories = true // a folder opens in VS Code as a workspace
         NSApp.activate()
         guard panel.runModal() == .OK else { return }
         engine.addPayloads(panel.urls.map(LaunchPayload.init), to: item.id)

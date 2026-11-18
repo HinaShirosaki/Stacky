@@ -14,7 +14,16 @@ public enum LaunchPayload: Codable, Hashable, Sendable {
     public init(_ url: URL) {
         if !url.isFileURL { self = .url(url, browser: nil) }
         else if url.pathExtension == "app", let id = Bundle(url: url)?.bundleIdentifier { self = .app(bundleID: id) }
+        else if (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true, let editor = Self.folderEditor() { self = .folder(url, app: editor) }
         else { self = .file(url) }
+    }
+
+    /// The editor a picked folder opens in as a workspace: a running VS Code-family editor, else VS Code if
+    /// installed. nil leaves the folder to Finder.
+    static func folderEditor() -> String? {
+        let running = NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier)
+        return running.first { EditorFolders.storage(for: $0) != nil }
+            ?? ["com.microsoft.VSCode"].first { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) != nil }
     }
 
     public var label: String {
